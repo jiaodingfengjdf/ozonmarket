@@ -1,0 +1,39 @@
+﻿# ---- 运行产物 / 缓存（不入库）----
+out/
+data/
+export/
+.chrome-profile/
+__pycache__/
+*.pyc
+*.log
+
+# ---- 抓包与临时请求体 ----
+out_*.json
+body*.json
+b1.json
+b2.json
+_attrprobe.json
+
+# ---- 凭证（务必不要提交）----
+config.json
+token.json
+*.token
+
+# ---- 运行时缓存（体积大、可重建）----
+web/attrs_cache.json
+web/translate_cache.json
+web/translate_budget.json
+
+# ---- README 没引用的截图 ----
+web/ui.png
+web/ui2.png
+web/ui3.png
+web/ui4.png
+web/ui5.png
+web/ui_cols.png
+web/ui_final.png
+web/ui_multi.png
+web/ui_attrs.png
+web/ui_tree.png
+web/ui_market2.png
+

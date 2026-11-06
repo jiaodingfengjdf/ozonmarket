@@ -1,0 +1,249 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Ozon 选品工作台</title>
+<link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="logo">OZ</span>
+    <div>
+      <h1>Ozon 选品工作台</h1>
+      <p class="sub">实时抓取 ozon.ru · 类目 / 榜单 / 筛选 / 产品数据</p>
+    </div>
+  </div>
+  <div class="topbar-actions">
+    <div class="seg" id="viewSeg">
+      <button data-view="picker" class="on">选品</button>
+      <button data-view="market">类目大盘</button>
+    </div>
+    <div class="seg" id="sortSeg"></div>
+    <button id="btnExport" class="btn primary">导出 XLSX</button>
+    <span id="stat" class="stat"></span>
+  </div>
+</header>
+
+<main class="layout" id="pickerView">
+  <aside class="sidebar">
+    <div class="side-head">
+      <input id="catSearch" type="search" placeholder="搜索类目（中/俄文）…" />
+      <div class="selbar">
+        <span>已选类目 <b id="selCount">0</b></span>
+        <button id="btnClearSel" class="linklike">清空</button>
+      </div>
+      <div id="treeMeta" class="tree-meta"></div>
+    </div>
+    <nav id="catTree" class="cat-tree"></nav>
+  </aside>
+
+  <section class="content">
+    <div class="filters" id="filterPanel">
+      <div class="ftabs" id="fTabs">
+        <button data-tab="all" class="on">全部</button>
+        <button data-tab="new">新品（≤30 天）</button>
+        <button data-tab="highrate">高评分（≥4.8）</button>
+        <button data-tab="discount">高折扣（≥50%）</button>
+        <button data-tab="seller">卖家信息齐全</button>
+        <button data-tab="hot">爆款（评价 ≥1000）</button>
+        <span class="ftabs-cat" id="filterCat"></span>
+      </div>
+
+      <div class="fform">
+        <div class="frow"><label>标题</label><input id="fTitle" placeholder="标题包含…" /></div>
+        <div class="frow"><label>SKU</label><input id="fSku" placeholder="商品 ID" /></div>
+        <div class="frow"><label>卖家</label><input data-df="seller" placeholder="店铺名包含…" /></div>
+        <div class="frow"><label>卖家 ID</label><input id="fSellerId" placeholder="数字 ID" /></div>
+
+        <div class="frow"><label>价格 ₽</label>
+          <div class="rng"><input id="fPriceMin" type="number" placeholder="低" /><i>—</i><input id="fPriceMax" type="number" placeholder="高" /></div></div>
+        <div class="frow"><label>品牌</label><select id="fBrand"></select></div>
+        <div class="frow"><label>卖家评分</label>
+          <div class="rng"><input data-df="seller_rating_min" type="number" step="0.1" placeholder="低" /><i>—</i><input data-df="seller_rating_max" type="number" step="0.1" placeholder="高" /></div></div>
+        <div class="frow"><label>商品评分</label>
+          <div class="rng"><input data-df="rating_min" type="number" step="0.1" placeholder="低" /><i>—</i><input data-df="rating_max" type="number" step="0.1" placeholder="高" /></div></div>
+
+        <div class="frow"><label>店铺</label><select id="fShop"></select></div>
+        <div class="frow"><label>颜色</label><select id="fColor"></select></div>
+        <div class="frow"><label>评价数</label>
+          <div class="rng"><input data-df="reviews_min" type="number" placeholder="低" /><i>—</i><input data-df="reviews_max" type="number" placeholder="高" /></div></div>
+        <div class="frow"><label>提问数</label>
+          <div class="rng"><input data-df="questions_min" type="number" placeholder="低" /><i>—</i><input data-df="questions_max" type="number" placeholder="高" /></div></div>
+
+        <div class="frow"><label>类型</label><select id="fType"></select></div>
+        <div class="frow"><label>配送</label><select id="fDelivery"></select></div>
+        <div class="frow"><label>库存</label>
+          <div class="rng"><input data-df="stock_min" type="number" placeholder="低" /><i>—</i><input data-df="stock_max" type="number" placeholder="高" /></div></div>
+        <div class="frow"><label>图片数</label>
+          <div class="rng"><input data-df="images_min" type="number" placeholder="低" /><i>—</i><input data-df="images_max" type="number" placeholder="高" /></div></div>
+
+        <div class="frow"><label>重量 g</label>
+          <div class="rng"><input data-df="weight_min" type="number" placeholder="低" /><i>—</i><input data-df="weight_max" type="number" placeholder="高" /></div></div>
+        <div class="frow"><label>长 / 宽 mm</label>
+          <div class="rng"><input data-df="length_min" type="number" placeholder="长低" /><i>—</i><input data-df="width_max" type="number" placeholder="宽高" /></div></div>
+        <div class="frow"><label>产地</label><input data-df="country" placeholder="如 Китай / 中国" /></div>
+        <div class="frow"><label>卖家货号</label><input data-df="offer_code" placeholder="货号包含…" /></div>
+      </div>
+
+      <div class="fform2">
+        <div class="frow"><label>上架日期</label>
+          <div class="chips" id="fDays">
+            <button data-days="15">最近 15 天</button>
+            <button data-days="30">最近 30 天</button>
+            <button data-days="90">最近 90 天</button>
+            <button data-days="180">最近 180 天</button>
+            <button data-days="365">最近 365 天</button>
+            <button data-days="0" class="on">全部</button>
+          </div>
+        </div>
+        <div class="frow"><label>诚信标志</label>
+          <div class="chips" id="fHonest">
+            <button data-honest="" class="on">全部</button>
+            <button data-honest="是">是</button>
+            <button data-honest="否">否</button>
+          </div>
+        </div>
+        <div class="frow"><label>类目属性</label>
+          <div class="attr-slots" id="fAttrs"></div>
+        </div>
+      </div>
+
+      <div class="ffoot">
+        <div class="fleft">
+          <select id="fSchemeList"><option value="">— 筛选方案 —</option></select>
+          <input id="fSchemeName" placeholder="方案名" />
+          <button id="btnSchemeSave" class="btn">保存</button>
+          <button id="btnSchemeDel" class="btn">删除</button>
+        </div>
+        <div class="fright">
+          <button id="btnReset" class="btn">重置</button>
+          <button id="btnQuery" class="btn primary">查询</button>
+        </div>
+      </div>
+    </div>
+    <div class="results">
+      <div class="results-head">
+        <div id="crumb" class="crumb"></div>
+        <div class="pager">
+          <button id="prevPage" class="btn ghost">‹ 上一页</button>
+          <span id="pageInfo">第 1 页</span>
+          <button id="nextPage" class="btn ghost">下一页 ›</button>
+        </div>
+      </div>
+
+      <div class="toolbar">
+        <label>每页
+          <select id="selPages">
+            <option value="1">8 条</option>
+            <option value="4" selected>32 条</option>
+            <option value="8">64 条</option>
+            <option value="12">96 条</option>
+          </select>
+        </label>
+        <label>本地排序
+          <select id="selSort">
+            <option value="default">保持榜单顺序</option>
+            <option value="listed_desc">上架日期 ↓ 最新</option>
+            <option value="listed_asc">上架日期 ↑ 最早</option>
+            <option value="price_asc">价格 ↑ 低到高</option>
+            <option value="price_desc">价格 ↓ 高到低</option>
+            <option value="discount_desc">折扣 ↓ 力度大</option>
+            <option value="rating_desc">评分 ↓ 高到低</option>
+            <option value="reviews_desc">评论数 ↓ 多到少</option>
+            <option value="seller_rating_desc">卖家评分 ↓</option>
+            <option value="stock_desc">库存 ↓</option>
+          </select>
+        </label>
+        <label>上架
+          <select id="selDays">
+            <option value="0">不限</option>
+            <option value="7">≤ 7 天</option>
+            <option value="30">≤ 30 天</option>
+            <option value="90">≤ 90 天</option>
+            <option value="180">≤ 180 天</option>
+          </select>
+        </label>
+        <label>评论 ≥
+          <input id="inpMinRev" type="number" min="0" placeholder="0" style="width:76px" />
+        </label>
+        <span class="sp"></span>
+        <span id="rowCount"></span>
+      </div>
+
+      <div id="statbar" class="statbar"></div>
+
+      <div id="empty" class="empty" hidden>没有数据，换个类目或放宽筛选试试</div>
+      <div id="grid" class="results-body"></div>
+    </div>
+  </section>
+</main>
+
+<main class="market" id="marketView" hidden>
+  <div class="mkt-head">
+    <div>
+      <h2>类目大盘</h2>
+      <p class="mkt-sub">一次跑完多个一级类目，横向比较「哪个类目好切」</p>
+    </div>
+    <div class="mkt-controls">
+      <label>范围
+        <select id="mktCats">
+          <option value="all">全部 35 个一级类目</option>
+          <option value="10">前 10 个</option>
+          <option value="20">前 20 个</option>
+        </select>
+      </label>
+      <label>每类
+        <select id="mktPages">
+          <option value="1">1 页 / 8 条</option>
+          <option value="2">2 页 / 16 条</option>
+          <option value="3">3 页 / 24 条</option>
+          <option value="4" selected>4 页 / 32 条</option>
+          <option value="6">6 页 / 48 条</option>
+        </select>
+      </label>
+      <label>榜单
+        <select id="mktSorts">
+          <option value="score">热门榜</option>
+          <option value="new">新品榜</option>
+          <option value="score,new" selected>热门 + 新品</option>
+          <option value="score,new,discount">热门 + 新品 + 折扣</option>
+        </select>
+      </label>
+      <label>详情
+        <select id="mktDetail">
+          <option value="0">不抓（慢，无卖家维度）</option>
+          <option value="8" selected>8 个/类目（含卖家维度）</option>
+          <option value="16">16 个/类目</option>
+        </select>
+      </label>
+      <button id="btnMktRun" class="btn primary">开始分析</button>
+    </div>
+  </div>
+
+  <div class="mkt-progress" id="mktProgress" hidden>
+    <div class="bar"><i id="mktBar"></i></div>
+    <span id="mktProgressText">准备中…</span>
+  </div>
+
+  <div class="statbar" id="mktKpi"></div>
+
+  <div class="mkt-body">
+    <div id="mktTable"></div>
+    <div id="mktEmpty" class="empty">点「开始分析」跑一遍全类目大盘（全部 35 类目约 1–2 分钟）</div>
+  </div>
+</main>
+
+<div id="drawer" class="drawer" hidden>
+  <div class="drawer-mask" id="drawerMask"></div>
+  <div class="drawer-body">
+    <button class="drawer-close" id="drawerClose">×</button>
+    <div id="drawerContent"></div>
+  </div>
+</div>
+
+<script src="/app.js"></script>
+</body>
+</html>
+

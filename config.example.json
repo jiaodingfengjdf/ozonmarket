@@ -1,0 +1,28 @@
+{
+  "seller": {
+    "client_id": "在此填 Ozon Seller Client-Id",
+    "api_key": "在此填 Ozon Seller Api-Key",
+    "note": "Ozon Seller API 凭证，用于拉取全量类目树（含官方中文）。也可用环境变量 OZON_CLIENT_ID / OZON_API_KEY 覆盖。"
+  },
+  "proxy": {
+    "enabled": false,
+    "server": "socks5://127.0.0.1:1080",
+    "note": "ozon 按出口 IP 计速。被限流时换出口最快；填 socks5:// 或 http:// 地址后把 enabled 改成 true，launch_chrome.ps1 会自动带上 --proxy-server。"
+  },
+  "network": {
+    "min_interval": 0.85,
+    "jitter": 0.45,
+    "note": "单出口请求节奏：两次请求最小间隔（秒）与抖动比例。实测 ozon 安全区在每秒 1 次以内。"
+  },
+  "apifox_mcp": {
+    "note": "Ozon Seller API 文档的 Apifox MCP（可选，仅用于查文档，不参与取数）",
+    "config": {
+      "mcpServers": {
+        "Ozon Seller API - API 文档": {
+          "command": "cmd",
+          "args": ["/c", "npx", "-y", "apifox-mcp-server@latest", "--site-id=3531025"]
+        }
+      }
+    }
+  }
+}
