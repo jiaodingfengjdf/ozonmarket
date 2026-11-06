@@ -105,8 +105,12 @@ function catNodeEl(node, depth, path) {
   const zh = node.zh || node.n;
   const ru = node.zh ? node.n : '';
   const tag = node.type ? '<span class="tleaf">类型</span>' : '';
-  const dot = node.slug ? '<span class="dot ok" title="已映射前台类目"></span>'
-                        : '<span class="dot" title="点击时解析"></span>';
+  const inherited = !node.slug && (path || []).slice(0, -1).some((a) => a && a.slug);
+  const dot = node.slug
+    ? '<span class="dot ok" title="已映射前台类目"></span>'
+    : (inherited
+        ? '<span class="dot inh" title="无独立类目页，点击会用上级类目"></span>'
+        : '<span class="dot" title="点击时解析"></span>');
   const zhTxt = node.zh || node.n;
   const ruTxt = node.zh ? node.n : '';
   const cnt = hasKids ? `<span class="tcnt">${node.c.length}</span>` : '';
@@ -218,13 +222,36 @@ async function openNode(node, silent, path) {
       if (slug) node.slug = slug;
     } catch (e) { slug = null; }
   }
+
+  // 兜底：这个类型在前台没有独立类目页 → 用最近的、已映射的上级类目
+  let fallenBack = null;
   if (!slug) {
-    if (!silent) setStat(`「${node.n}」在 ozon.ru 上没有对应类目页`);
+    const chain = (path || [node]).slice(0, -1).reverse();
+    for (const anc of chain) {
+      let s = anc.slug;
+      if (!s) {
+        try {
+          const r2 = await api('/api/resolve?name=' + encodeURIComponent(anc.n) + '&online=0');
+          s = r2.slug;
+          if (s) anc.slug = s;
+        } catch (e) { s = null; }
+      }
+      if (s) { slug = s; fallenBack = anc; break; }
+    }
+  }
+
+  if (!slug) {
+    if (!silent) setStat(`「${node.n}」及其上级在前台都没有对应类目页`);
     return;
   }
-  // 面包屑路径
+
   const crumb = (path || [node]).map((x) => x.zh || x.n).join(' › ');
   state.pathZh = crumb;
+  if (fallenBack) {
+    setStat(`「${node.zh || node.n}」无独立类目页，已打开上级「${fallenBack.zh || fallenBack.n}」`);
+    selectCat(slug, fallenBack.zh || fallenBack.n, fallenBack.n);
+    return;
+  }
   selectCat(slug, zh, ru);
 }
 

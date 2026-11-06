@@ -787,7 +787,39 @@ def resolve_slug(name):
 
     if slug:
         add_mapping(name, slug)
+    _harvest_candidates(data)
     return slug, how
+
+
+def _harvest_candidates(data):
+    """一次搜索响应里把所有候选类目名也收进映射（免费扩大覆盖）"""
+    if not data:
+        return
+    ws = data.get("widgetStates") or {}
+    for k, v in ws.items():
+        if "filtersDesktop" not in k:
+            continue
+        try:
+            o = json.loads(v) if isinstance(v, str) else v
+        except Exception:
+            continue
+        for sec in o.get("sections") or []:
+            for fl in sec.get("filters") or []:
+                if fl.get("key") != "category":
+                    continue
+                for c in (fl.get("categoryFilter") or {}).get("categories") or []:
+                    title = c.get("title")
+                    u = c.get("urlValue") or ""
+                    m2 = re.search(r"/category/([a-z0-9\-]+-\d+)/", u)
+                    if title and m2:
+                        with _MAP_LOCK:
+                            mp = load_map()
+                            if "name:" + title not in mp:
+                                mp["name:" + title] = m2.group(1)
+                                try:
+                                    save_map()
+                                except Exception:
+                                    pass
 
 
 def _common_len(a, b):
@@ -1415,6 +1447,12 @@ class Handler(BaseHTTPRequestHandler):
 
             if u.path == "/api/resolve":
                 name = q.get("name") or ""
+                offline = q.get("online") == "0"
+                if offline:
+                    # 只查缓存 / 手工表，不发任何网络请求
+                    m = load_map()
+                    slug = m.get("name:" + name) or MANUAL_MAP.get(name)
+                    return self._json({"slug": slug, "how": "cache" if slug else "none", "name": name})
                 try:
                     slug, how = resolve_slug(name)
                 except Exception as e:
@@ -1661,6 +1699,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 

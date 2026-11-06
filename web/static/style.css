@@ -448,3 +448,6 @@ body {
   background: #eef2f7; color: #93a0b0; font-size: 9.5px; vertical-align: 1px;
 }
 .cat-item.on .tcnt { background: rgba(0,91,255,.12); color: var(--accent); }
+
+/* 无独立类目页、继承上级类目 */
+.dot.inh { background: #7aa7ff; }
