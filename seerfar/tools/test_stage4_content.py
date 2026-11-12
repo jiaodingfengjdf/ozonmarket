@@ -156,6 +156,8 @@ def t_wiring():
     check("配置有 content 段", isinstance(cfg.get("content"), dict) and "ttl_hours" in cfg["content"], cfg.get("content"))
     check("竞品页有内容区块", 'data-act="content"' in prod and "data-content-box" in prod)
     check("app.js 有 loadContent", "async function loadContent" in js and "renderContent" in js)
+    check("内容展示顺序：图片→标题→描述→属性→变体→卖家库存→富文本",
+          "${imgs}${head}${desc}${kv}${asp}${extra}${rich}${tagbox}" in js)
     check("CLI 有 content 命令", 'sub.add_parser("content"' in cli)
     check("content 支持 cached_only（抽屉不偷跑浏览器）", "cached_only" in srv and "need_fetch" in srv)
     check("抽屉详情支持 trend=0（省一半积分）", 'one("trend", "1") != "0"' in srv)

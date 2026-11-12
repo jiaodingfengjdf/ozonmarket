@@ -1290,10 +1290,12 @@ function renderContent(box, d) {
     ? `<h4>卖家与库存</h4><div class="attrgrid">` +
       exRows.map(([k, v]) => `<div class="akey">${esc(k)}</div><div class="aval">${esc(String(v))}</div>`).join('') + '</div>'
     : '';
-  box.innerHTML = `<div class="contenthead">
+  const head = `<div class="contenthead">
       <b>${esc(d.title || '')}</b>
       <span class="muted">${esc(d.brand || '')}${d.rating ? ' · ★' + fmt(d.rating) : ''}${d.review_count ? ' · ' + fmt(d.review_count) + ' 条评论' : ''}${d.price ? ' · ' + money(d.price) + '₽' + (d.original_price ? '（原价 ' + money(d.original_price) + '₽）' : '') : ''}</span>
-    </div>${extra}${kv}${asp}${desc}${tagbox}${imgs}${rich}`;
+    </div>`;
+  // 展示顺序（按需求固定）：图片 → 标题 → 描述 → 产品属性 → 变体维度 → 卖家与库存 → 富文本 → 标签
+  box.innerHTML = `${imgs}${head}${desc}${kv}${asp}${extra}${rich}${tagbox}`;
 }
 
 async function loadContent(btn) {
