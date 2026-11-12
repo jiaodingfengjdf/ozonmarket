@@ -122,6 +122,7 @@ $env:SEERFAR_API_KEY="eyJ..."
 | `python cli.py product 175924376` | 竞品详情 + 日趋势 + 月度 | 20 |
 | `python cli.py shop 7` | 店铺商品 | 10 |
 | `python cli.py export --type products --limit 1000` | 从本地库导出 | 0 |
+| `python cli.py rescore` | 重算本地库机会分（从 raw 还原） | 0 |
 | `python cli.py cache-clear --yes` | 清缓存 | 0（但之后会重新扣费） |
 
 **筛选参数**：`--price-min/--price-max`、`--monthly-sales-min`、`--review-count-max`、
@@ -358,6 +359,64 @@ python tools/test_stage1.py      # 39 项断言：条件透传 / 多页去重 / 
 python tools/test_stage2.py      # 46 项断言：品牌/类目归一化、variation_text、评论四件套、路由与前端接线
 ```
 
+
+---
+
+## 9.3 阶段 3 修正（已上线，2026-11-13）
+
+这一批把「本地库只是看板 / 机会分不可配 / 没有自己的成本账」补成可决策的工具。
+
+### 9.3.1 本地库升级（0 积分）
+
+- **扩表**：`product` 从 15 列扩到 **50 列**（重量/体积/尺寸/毛利率/DRR/加购率/转化率/退货率/变体数/问答数/曝光/浏览/上架天数/机会分/真毛利/净利/保本价/建议售价…），`keyword` 补 `title_density / relevancy / word_count / opportunity`。
+- **自动迁移**：旧库启动时按 `PRAGMA table_info` 比对并 `ALTER TABLE ADD COLUMN`，无需手动重建。
+- **筛选 + 分页**：`GET /api/local/products` 支持 `q`（标题/品牌/店铺/类目/SKU）、`price/sales/gross_margin/net_margin/opportunity/review_count/weight/…` 的 `_min/_max` 区间、`favorite_only=1`、`sort/direction/limit/offset`，返回 `{rows,total}`；关键词库同理。**所有过滤在 SQL 层完成，0 积分。**
+- 界面：本地商品库/关键词库页各加了完整筛选表单 + 分页器（之前只有 `limit+sort`，等于看不全也筛不了）。
+
+### 9.3.2 机会分可配 + 落库
+
+- 权重与量纲移到 `config.json` 的 `opportunity` 段（默认商品：销量35/增长25/低竞争25/毛利转化15），**权重自动归一到 100**，改配置即改口径。
+- 分数写入 `product.opportunity` / `keyword.opportunity`，支持本地库按机会分排序与区间筛选。
+- 新增 `python cli.py rescore`：从历史 `raw` JSON 还原并重算本地库机会分（实测 170 条，0 积分）。
+
+### 9.3.3 利润模型（自建成本账，0 积分）
+
+`sf_profit.py` + `POST /api/profit`，把官方 `grossMargin` 换成可解释的账：
+
+```
+售价 − 采购(CNY×汇率) − 头程(计费重×单价×汇率) − 佣金(售价×%) − 支付(%) − 广告(DRR%) − 退货损耗(×0.5)
+= 净利 → 真毛利率 = 净利/售价
+保本价 = (采购+头程) / (1 − 佣金% − 支付% − 广告% − 退货%×0.5)
+建议售价 = (采购+头程) / (1 − 上述合计 − 目标毛利%)
+```
+
+- 计费重 = `max(实重, 体积重)`，体积重 = `体积(cm³)/5000`（体积缺失时用 `dimension` 毫米串换算）；支持直接指定每件物流费覆盖。
+- 广告费默认取商品自带 `drr`，也可手动覆盖；结果写回库（`net_profit / net_margin / breakeven / suggested`），可排序、可筛「真毛利率 ≥ X」。
+- 界面：在线选品页新增「利润计算器」（9 个参数，localStorage 记忆，含「只看盈利」开关），算完表头立刻多出 净利/真毛利/保本价/建议售价 四列。
+- 实测样例：售价 28 217₽、采购 40 CNY、头程 32 CNY/kg、佣金 15% → 计费重 16.97kg、头程 9 052₽、净利 13 868₽、真毛利 49.15%、保本 11 509₽、建议 16 470₽。
+
+### 9.3.4 收藏 + 选品报告
+
+- 表格首列 ★ 一键收藏（`POST /api/favorites/toggle`），本地库可「只看收藏」，`GET /api/favorites` 返回带商品字段的清单。
+- 「导出选品报告」= 多 sheet XLSX：**选品结论**（时间/页面/筛选条件/利润参数/命中数/平均毛利/亏损行）→ **商品清单**（54 列，含净利与真毛利）→ **关键词**（关键词页）→ **收藏清单**。
+
+新增/变更 API：
+
+```
+GET  /api/local/products?q=&price_min=&price_max=&opportunity_min=&favorite_only=1&sort=&direction=&limit=&offset=
+GET  /api/local/keywords?q=&search_volume_min=&growth30_min=&kind=&sort=&limit=&offset=
+GET  /api/favorites
+POST /api/favorites/toggle      {sku, tags?, note?}
+POST /api/profit                {rows:[...], params:{cost_cny, rate_cny_rub, shipping_cny_per_kg,
+                                 commission_pct, payment_pct, drr_pct, return_pct,
+                                 target_margin_pct, volumetric_divisor}, persist:true}
+POST /api/export                {kind:"report", rows, keywords?, favorites?, meta?, filename?}
+```
+
+自测（0 积分）：
+```powershell
+python tools/test_stage3.py     # 53 项：迁移/筛选分页/收藏/机会分可配/利润公式/报告 sheet/接线
+```
 
 ---
 

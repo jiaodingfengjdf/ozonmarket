@@ -78,6 +78,9 @@ PRODUCT_COLUMNS = [
     ("品牌ID", "brand_id"), ("卖家ID", "seller_id"), ("品牌链接", "brand_url"),
     ("商品链接", "product_url"), ("图片", "image_url"),
     ("利润₽", "profit"), ("评分增长", "ratings_rate"), ("原销量", "origin_sales"),
+    # 阶段3：自建利润模型（POST /api/profit 计算后才有值，未算则为空）
+    ("计费重kg", "chargeable_kg"), ("净利₽", "net_profit"), ("真毛利率%", "net_margin"),
+    ("保本价₽", "breakeven"), ("建议售价₽", "suggested"), ("ROI%", "roi"),
     # 以下三项官方文档标注「已弃用」，实测返回 null；保留列以便平台恢复返回时直接可用
     ("类目排名(已弃用)", "category_rank"),
     ("自然排名(已弃用)", "natural_rank"), ("广告排名(已弃用)", "ad_rank"),
@@ -261,32 +264,78 @@ def norm_keyword(r: dict, kind="market") -> dict:
     }
 
 
-def opportunity(row: dict, kind="keyword") -> dict:
+# 机会分默认权重与量纲（可在 config.json 的 opportunity 段覆盖）
+OPP_DEFAULT = {
+    "weights": {
+        "keyword": {"demand": 35, "growth": 25, "low_comp": 25, "conv": 15},
+        "product": {"sales": 35, "growth": 25, "low_comp": 25, "conv": 15},
+    },
+    "scales": {
+        "keyword": {"search_volume": 1000000, "market_space": 1000,
+                    "competing_products": 10000, "sellers": 2000,
+                    "conversion_sharing": 100, "avg_price": 20000, "growth": 60},
+        "product": {"sales": 10000, "revenue": 10000000, "review_count": 20000,
+                    "variants": 50, "gross_margin": 100, "conv_to_cart_pdp": 50,
+                    "growth": 80},
+    },
+}
+
+
+def _merge_cfg(base, override):
+    out = {k: dict(v) if isinstance(v, dict) else v for k, v in base.items()}
+    for k, v in (override or {}).items():
+        if isinstance(v, dict) and isinstance(out.get(k), dict):
+            out[k].update(v)
+        else:
+            out[k] = v
+    return out
+
+
+def opportunity(row: dict, kind="keyword", cfg=None) -> dict:
     """选品机会分（本系统自定义启发式，非 Seerfar 官方指标，0~100，逐项可解释）。
 
-    需求 35% + 增长 25% + 低竞争 25% + 转化/空间 15%。
-    全部用对数压缩，避免头部爆款把分数拉爆。
+    权重与量纲可配置（config.json → opportunity），默认：
+      商品：销量 35 + 增长 25 + 低竞争 25 + 毛利/转化 15
+      关键词：需求 35 + 增长 25 + 低竞争 25 + 转化/空间 15
+    全部对数压缩，避免头部爆款把分数拉爆；权重会自动归一到 100。
     """
+    conf = _merge_cfg(OPP_DEFAULT, cfg or {})
+    w = conf["weights"].get(kind) or conf["weights"]["product"]
+    s = conf["scales"].get(kind) or conf["scales"]["product"]
+
     def lg(v, scale, cap=1.0):
         v = num(v, 0) or 0
-        if v <= 0:
+        if v <= 0 or not scale:
             return 0.0
         return min(cap, math.log10(1 + v) / math.log10(1 + scale))
 
+    total_w = sum(w.values()) or 1.0
+    norm = 100.0 / total_w
+
     if kind == "keyword":
-        demand = lg(row.get("search_volume"), 1_000_000) * 0.6 + lg(row.get("market_space"), 1000) * 0.4
-        growth = max(0.0, min(1.0, (num(row.get("growth30"), 0) or 0) / 60.0))
-        comp = 1.0 - lg(row.get("competing_products"), 10000) * 0.6 - lg(row.get("sellers"), 2000) * 0.4
-        conv = lg(row.get("conversion_sharing"), 100) * 0.6 + lg(row.get("avg_price"), 20000) * 0.4
-        parts = {"需求": round(demand * 35, 1), "增长": round(growth * 25, 1),
-                 "低竞争": round(max(0.0, comp) * 25, 1), "转化/空间": round(conv * 15, 1)}
+        demand = lg(row.get("search_volume"), s["search_volume"]) * 0.6 \
+            + lg(row.get("market_space"), s["market_space"]) * 0.4
+        growth = max(0.0, min(1.0, (num(row.get("growth30"), 0) or 0) / (s.get("growth") or 60.0)))
+        comp = 1.0 - lg(row.get("competing_products"), s["competing_products"]) * 0.6 \
+            - lg(row.get("sellers"), s["sellers"]) * 0.4
+        conv = lg(row.get("conversion_sharing"), s["conversion_sharing"]) * 0.6 \
+            + lg(row.get("avg_price"), s["avg_price"]) * 0.4
+        parts = {"需求": round(demand * w["demand"] * norm, 1),
+                 "增长": round(growth * w["growth"] * norm, 1),
+                 "低竞争": round(max(0.0, comp) * w["low_comp"] * norm, 1),
+                 "转化/空间": round(conv * w["conv"] * norm, 1)}
     else:
-        demand = lg(row.get("sales"), 10000) * 0.5 + lg(row.get("revenue"), 10_000_000) * 0.5
-        growth = max(0.0, min(1.0, (num(row.get("sales_rate"), 0) or 0) / 80.0))
-        comp = 1.0 - lg(row.get("review_count"), 20000) * 0.7 - lg(row.get("variants"), 50) * 0.3
-        conv = lg(row.get("gross_margin"), 100) * 0.6 + lg(row.get("conv_to_cart_pdp"), 50) * 0.4
-        parts = {"销量": round(demand * 35, 1), "增长": round(growth * 25, 1),
-                 "低竞争": round(max(0.0, comp) * 25, 1), "毛利/转化": round(conv * 15, 1)}
+        demand = lg(row.get("sales"), s["sales"]) * 0.5 \
+            + lg(row.get("revenue"), s["revenue"]) * 0.5
+        growth = max(0.0, min(1.0, (num(row.get("sales_rate"), 0) or 0) / (s.get("growth") or 80.0)))
+        comp = 1.0 - lg(row.get("review_count"), s["review_count"]) * 0.7 \
+            - lg(row.get("variants"), s["variants"]) * 0.3
+        conv = lg(row.get("gross_margin"), s["gross_margin"]) * 0.6 \
+            + lg(row.get("conv_to_cart_pdp"), s["conv_to_cart_pdp"]) * 0.4
+        parts = {"销量": round(demand * w["sales"] * norm, 1),
+                 "增长": round(growth * w["growth"] * norm, 1),
+                 "低竞争": round(max(0.0, comp) * w["low_comp"] * norm, 1),
+                 "毛利/转化": round(conv * w["conv"] * norm, 1)}
     score = round(sum(parts.values()), 1)
     return {"score": score, "parts": parts}
 
@@ -313,6 +362,7 @@ class Selector:
         self.c = client or get_client()
         self.db = store or STORE
         self.catalog = catalog
+        self.opp_cfg = (self.c.cfg or {}).get("opportunity") if hasattr(self.c, "cfg") else None
         if self.catalog:
             self.catalog.attach(self.c)
 
@@ -408,7 +458,7 @@ class Selector:
         rows = [r for r in rows if keep(r)]
         filtered_out = before - len(rows)
         for r in rows:
-            o = opportunity(r, "product")
+            o = opportunity(r, "product", self.opp_cfg)
             r["opportunity"] = o["score"]
             r["opportunity_parts"] = o["parts"]
         self.db.upsert_products(rows)
@@ -492,7 +542,7 @@ class Selector:
             if not records or not d.get("hasNextPage"):
                 break
         for r in rows:
-            r["opportunity"] = opportunity(r, "product")["score"]
+            r["opportunity"] = opportunity(r, "product", self.opp_cfg)["score"]
         self.db.upsert_products(rows)
         overview = {
             "id": d.get("id"), "rating": d.get("rating"),
@@ -541,7 +591,7 @@ class Selector:
             if pno >= total_pages or not recs:
                 break
         for r in rows:
-            r["opportunity"] = opportunity(r, "keyword")["score"]
+            r["opportunity"] = opportunity(r, "keyword", self.opp_cfg)["score"]
         self.db.upsert_keywords(rows, kind)
         return {"rows": rows, "total": d.get("total"), "page": d.get("current"),
                 "pages": d.get("totalPages"), "cached": res.cached if res else False,
@@ -737,7 +787,7 @@ class Selector:
             if not prods or not d.get("hasNextPage"):
                 break
         for x in rows:
-            x["opportunity"] = opportunity(x, "product")["score"]
+            x["opportunity"] = opportunity(x, "product", self.opp_cfg)["score"]
         self.db.upsert_products(rows)
         self.db.upsert_shop({"id": str(shop_id), "name": "",
                              "rating": d.get("rating"),
@@ -869,6 +919,24 @@ class Selector:
             raise ValueError("创建评论分析任务会按 200 积分/SKU 扣费，必须显式确认")
         r = self.c.call("review_task", {"skus": [str(x) for x in skus]}, confirm=True)
         return {"rows": r.data or {}, "cached": r.cached, "cost": r.cost}
+
+
+    # ---------- 利润（阶段3）----------
+    def profit(self, rows, params=None, *, persist=True):
+        from sf_profit import enrich
+        out, summary = enrich(rows, params or {})
+        if persist:
+            try:
+                self.db.update_profit(out)
+            except Exception:
+                pass
+        return {"rows": out, "summary": summary}
+
+    # ---------- 收藏 ----------
+    def favorite_toggle(self, sku, tags="", note=""):
+        if not str(sku or "").strip():
+            raise ValueError("缺少 sku")
+        return self.db.favorite_toggle(str(sku).strip(), tags, note)
 
 
 def get_selector(client=None, catalog=None) -> Selector:

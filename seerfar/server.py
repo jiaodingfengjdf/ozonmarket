@@ -24,8 +24,10 @@ except Exception:
 from sf_catalog import get_catalog
 from sf_client import (ApiError, AuthError, BudgetExceeded, ConfirmRequired,
                        CreditExhausted, ENDPOINTS, get_client)
+import sf_db
 from sf_db import STORE
-from sf_export import EXPORT_DIR, export_full, export_keywords, export_products, export_workbook
+from sf_export import (EXPORT_DIR, export_full, export_keywords, export_products,
+                       export_report, export_workbook)
 from sf_select import KEYWORD_COLUMNS, PRODUCT_COLUMNS, SORT_FIELDS, Selector
 
 ROOT = Path(__file__).resolve().parent
@@ -88,6 +90,23 @@ class Handler(BaseHTTPRequestHandler):
     def fail(self, err, code=400, kind="Error"):
         self.json({"ok": False, "error": str(err), "type": kind}, code)
 
+    def qs_filters(self, qs):
+        """query string → 本地库筛选字典（字段白名单，避免拼 SQL 被注入）。"""
+        def one(k, d=None):
+            return (qs.get(k) or [d])[0]
+        f = {}
+        for k in ("q", "category_id", "seller", "brand", "kind",
+                  "favorite_only", "has_opportunity"):
+            v = one(k)
+            if v not in (None, ""):
+                f[k] = v
+        allowed = set(sf_db.PRODUCT_FILTER_NUM) | set(sf_db.KEYWORD_FILTER_NUM)
+        for name in qs.keys():
+            if name.endswith("_min") or name.endswith("_max"):
+                if name[:-4] in allowed:
+                    f[name] = one(name)
+        return f
+
     def body(self):
         n = int(self.headers.get("Content-Length") or 0)
         if not n:
@@ -100,6 +119,7 @@ class Handler(BaseHTTPRequestHandler):
 
     # ---------- 路由 ----------
     # 10 个独立功能页面（干净 URL → static/ 下的 HTML）
+
     PAGES = {
         "/": "index.html",
         "/index.html": "index.html",
@@ -140,11 +160,24 @@ class Handler(BaseHTTPRequestHandler):
                 return self.ok(CATALOG.leaves(one("parent", ""),
                                               int(one("limit", 200) or 200)))
             if p == "/api/local/products":
-                return self.ok(STORE.products(limit=int(one("limit", 200) or 200),
-                                              order=one("sort", "revenue")))
+                f = self.qs_filters(qs)
+                rows, total = STORE.products_page(f,
+                                                  one("sort", "revenue") or "revenue",
+                                                  one("direction", "DESC") or "DESC",
+                                                  int(one("limit", 200) or 200),
+                                                  int(one("offset", 0) or 0))
+                favs = STORE.favorite_sku_set()
+                for r in rows:
+                    r["favorite"] = r.get("sku") in favs
+                return self.ok({"rows": rows, "total": total, "filters": f})
             if p == "/api/local/keywords":
-                return self.ok(STORE.keywords(limit=int(one("limit", 200) or 200),
-                                              order=one("sort", "search_volume")))
+                f = self.qs_filters(qs)
+                rows, total = STORE.keywords_page(f, one("sort", "search_volume") or "search_volume",
+                                                  int(one("limit", 200) or 200),
+                                                  int(one("offset", 0) or 0))
+                return self.ok({"rows": rows, "total": total, "filters": f})
+            if p == "/api/favorites":
+                return self.ok({"rows": STORE.favorites(int(one("limit", 500) or 500))})
             if p == "/api/logs":
                 return self.ok({"recent": STORE.recent_logs(int(one("limit", 60) or 60)),
                                 "daily": STORE.daily_usage()})
@@ -256,6 +289,17 @@ class Handler(BaseHTTPRequestHandler):
             if p == "/api/estimate":
                 calls = [(x.get("name"), x.get("body")) for x in (b.get("calls") or [])]
                 return self.ok(CLIENT.estimate(calls))
+            if p == "/api/favorites/toggle":
+                return self.ok(SELECTOR.favorite_toggle(b.get("sku") or "",
+                                                        b.get("tags") or "",
+                                                        b.get("note") or ""))
+            if p == "/api/profit":
+                rows = b.get("rows") or []
+                if not rows:
+                    return self.fail("没有可计算的行", 400)
+                r = SELECTOR.profit(rows, b.get("params") or {},
+                                    persist=bool(b.get("persist", True)))
+                return self.ok(r)
             if p == "/api/cache/clear":
                 if not b.get("confirm"):
                     return self.ok({"need_confirm": True, "stats": STORE.cache_stats()})
@@ -295,6 +339,13 @@ class Handler(BaseHTTPRequestHandler):
                  for r in rows]
         if kind == "keywords":
             path = export_keywords(clean, b.get("filename"))
+        elif kind == "report":
+            path = export_report(clean,
+                                 b.get("keywords") or None,
+                                 b.get("favorites") or None,
+                                 b.get("meta") or None,
+                                 b.get("overview") or None,
+                                 b.get("filename"))
         elif kind == "full":
             path = export_full(clean, b.get("keywords"), b.get("overview"),
                                b.get("filename"))

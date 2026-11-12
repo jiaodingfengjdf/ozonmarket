@@ -44,17 +44,36 @@
       </div>
       <form class="filtercard" data-tool="local_products" autocomplete="off">
         <div class="fall">
-          <div class="field"><label class="flab">条数</label><div class="fctl">
-            <input class="innum" type="number" data-f="limit" value="200" min="1" max="2000"></div></div>
-          <div class="field"><label class="flab">排序</label><div class="fctl">
+          <div class="field span2"><label class="flab">搜索</label><div class="fctl">
+            <input class="inwide" data-f="q" placeholder="标题 / 品牌 / 店铺 / 类目 / SKU 关键字"></div></div>
+          <div class="field"><label class="flab">价格 ₽</label><div class="fctl range">
+            <input class="innum" type="number" data-f="price_min" placeholder="最低"><span class="dash">—</span><input class="innum" type="number" data-f="price_max" placeholder="最高"></div></div>
+          <div class="field"><label class="flab">月销量</label><div class="fctl range">
+            <input class="innum" type="number" data-f="sales_min" placeholder="最低"><span class="dash">—</span><input class="innum" type="number" data-f="sales_max" placeholder="最高"></div></div>
+          <div class="field"><label class="flab">毛利率%</label><div class="fctl range">
+            <input class="innum" type="number" data-f="gross_margin_min" placeholder="最低"><span class="dash">—</span><input class="innum" type="number" data-f="gross_margin_max" placeholder="最高"></div></div>
+          <div class="field"><label class="flab">真毛利率% <i class="tip">算过利润才有</i></label><div class="fctl range">
+            <input class="innum" type="number" data-f="net_margin_min" placeholder="最低"><span class="dash">—</span><input class="innum" type="number" data-f="net_margin_max" placeholder="最高"></div></div>
+          <div class="field"><label class="flab">机会分</label><div class="fctl range">
+            <input class="innum" type="number" data-f="opportunity_min" placeholder="最低"><span class="dash">—</span><input class="innum" type="number" data-f="opportunity_max" placeholder="最高"></div></div>
+          <div class="field"><label class="flab">评论数</label><div class="fctl range">
+            <input class="innum" type="number" data-f="review_count_min" placeholder="最低"><span class="dash">—</span><input class="innum" type="number" data-f="review_count_max" placeholder="最高"></div></div>
+          <div class="field"><label class="flab">只看收藏</label><div class="fctl radios">
+            <label><input type="checkbox" data-f="favorite_only"><span>是</span></label></div></div>
+          <div class="field"><label class="flab">条数 / 排序</label><div class="fctl">
+            <input class="innum" type="number" data-f="limit" value="200" min="1" max="2000">
             <select class="insm" data-f="sort"><option value="revenue">月销售额</option><option value="sales">月销量</option>
               <option value="price">价格</option><option value="review_count">评论数</option>
-              <option value="review_rating">评分</option><option value="updated_at">最近更新</option></select>
+              <option value="review_rating">评分</option><option value="opportunity">机会分</option>
+              <option value="net_margin">真毛利率</option><option value="gross_margin">毛利率</option>
+              <option value="weight">重量</option><option value="updated_at">最近更新</option></select>
             <select class="inxs" data-f="direction"><option value="DESC">降序</option><option value="ASC">升序</option></select></div></div>
         </div>
+        <div class="applied-bar"><span class="applied-lab">已选条件</span><div class="applied-tags" data-tags><span class="muted">无</span></div></div>
         <div class="formfoot">
-          <div class="foot-left"><span class="tiny">所有查询结果都会自动落库，这里是离线查看</span></div>
-          <div class="foot-right"><button type="submit" class="btn primary"><span class="btnlabel">查询本地库</span></button></div>
+          <div class="foot-left"><span class="tiny">所有查询结果都会自动落库，这里是离线查看（含筛选与分页）</span></div>
+          <div class="foot-right"><button type="button" class="btn ghost" data-reset>重置</button>
+            <button type="submit" class="btn primary"><span class="btnlabel">查询本地库</span></button></div>
         </div>
       </form>
       <section class="resultcard">
@@ -65,6 +84,7 @@
         <div class="statusline" data-meta>本地 SQLite 查询，<b>不消耗积分</b>。</div>
         <div class="tablewrap" data-table><div class="placeholder"><div class="ph-icon">◈</div><div class="ph-title">还没有查询结果</div>
           <div class="ph-desc">点「查询本地库」查看已落库的商品</div></div></div>
+        <div class="pager" data-pager></div>
       </section>
     </section>
 

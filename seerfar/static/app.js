@@ -14,7 +14,7 @@ const money = v => v == null ? '—' : Number(v).toLocaleString('zh-CN', { maxim
 
 /* ---------- 列定义（顺序 = 展示顺序：基础+产品数据 → 价格销售 → 口碑售后 → 流量转化漏斗 → 广告促销 → 上架/变体 → 综合） ---------- */
 const RESULT_COLS = [
-  ['img', ''], ['sku', 'SKU'], ['title', '商品标题'],
+  ['fav', ''], ['img', ''], ['sku', 'SKU'], ['title', '商品标题'],
   ['weight', '重量g'], ['volume', '体积L'], ['dimension', '尺寸'],
   ['category_cn', '类目'], ['brand', '品牌'], ['seller', '店铺'],
   ['seller_type_text', '卖家类型'], ['fulfillment_text', '配送'],
@@ -26,12 +26,14 @@ const RESULT_COLS = [
   ['conv_view_to_order', '展示转化%'], ['order_conversion_rate', '订单转化%'],
   ['drr', '广告费用份额%'], ['promo_revenue_share', '促销销售占比%'],
   ['up_time_date', '上架时间'], ['up_days', '上架天数'], ['variants', '变体数'],
-  ['opportunity', '机会分'], ['link', '']
+  ['opportunity', '机会分'],
+  ['net_profit', '净利₽'], ['net_margin', '真毛利%'], ['breakeven', '保本价₽'], ['suggested', '建议售价₽'],
+  ['link', '']
 ];
 /* 率 / 占比 / 折扣类字段：数值后追加 % */
 const PCT_KEYS = new Set(['discount', 'gross_margin', 'return_cancellation_rate',
   'conv_to_cart_search', 'conv_to_cart_pdp', 'conv_view_to_order',
-  'order_conversion_rate', 'drr', 'promo_revenue_share']);
+  'order_conversion_rate', 'drr', 'promo_revenue_share', 'net_margin']);
 /* 表格列 → 官方排序字段：能映射的走服务端排序（全量），映射不到的只排当前已加载行 */
 const SORTMAP = {
   price: 'price', sales: 'sales', revenue: 'revenue', review_count: 'reviewCount',
@@ -44,7 +46,8 @@ const SORTMAP = {
   competing_products: 'competingProducts', sellers: 'sellers', market_space: 'marketSpace',
   conversion_sharing: 'conversionSharing', title_density: 'titleDensity',
   word_count: 'wordCount', relevancy: 'relevancy', exposure: 'exposure',
-  conversion: 'conversion', natural_rank: 'naturalRank', ad_rank: 'adRank'
+  conversion: 'conversion', natural_rank: 'naturalRank', ad_rank: 'adRank',
+  opportunity: 'opportunity', net_margin: 'net_margin', net_profit: 'net_profit'
 };
 const KEYWORD_COLS = [
   ['query', '关键词'], ['query_cn', '中文'], ['search_volume', '月搜索量'],
@@ -437,13 +440,23 @@ function renderTable(sel, rows, cols) {
   const body = rows.map(r => '<tr>' + cols.map(([k]) => {
     let v = r[k], cls = '', extra = '';
     if (k === 'sku' && !isKw) v = `<a href="javascript:;" class="sku-link" data-sku="${esc(r.sku)}">${esc(r.sku)}</a>`;
+    else if (k === 'fav') {
+      const on = favSet.has(String(r.sku));
+      v = `<button type="button" class="favbtn${on ? ' on' : ''}" data-fav="${esc(r.sku)}" title="${on ? '取消收藏' : '收藏'}">${on ? '★' : '☆'}</button>`;
+    }
     else if (k === 'img') v = r.image_url ? `<img class="thumb" src="${esc(r.image_url)}" loading="lazy">` : '<div class="thumb" style="background:#eef2fb"></div>';
     else if (k === 'link') v = r.product_url ? `<a href="${esc(r.product_url)}" target="_blank" rel="noopener">打开 ↗</a>` : '';
     else if (k === 'title') { extra = ` title="${esc(v)}"`; v = `<span class="pname">${esc(String(v || '').slice(0, 58))}</span>`; }
     else if (k === 'opportunity') {
       const s = Number(v || 0), lvl = s >= 60 ? 'high' : s >= 40 ? 'mid' : 'low';
       v = `<span class="score ${lvl}">${fmt(s)}</span>`;
-    } else if (k === 'sales_rate' || k === 'growth30' || k === 'revenue_rate') {
+    } else if (k === 'net_profit' || k === 'breakeven' || k === 'suggested') {
+      const n = Number(v);
+      cls = 'num';
+      v = (v == null || !isFinite(n)) ? '—'
+        : `<span class="${k === 'net_profit' && n < 0 ? 'delta-down' : ''}">${money(n)}</span>`;
+    }
+    else if (k === 'sales_rate' || k === 'growth30' || k === 'revenue_rate') {
       const s = Number(v);
       if (isFinite(s)) v = `<span class="${s > 0 ? 'delta-up' : s < 0 ? 'delta-down' : ''}">${s > 0 ? '+' : ''}${fmt(s)}%</span>`;
       cls = 'num';
@@ -664,9 +677,19 @@ async function runTool(tool, btn) {
       note = `竞品 ${esc(f.sku)} · 消耗约 20 积分`;
       setMeta(tool, note); refreshStatus(); busy(b, false, '查竞品'); return;
     } else if (tool === 'local_products' || tool === 'local_keywords') {
-      const j = await api(`${cfg.api}?limit=${f.limit || 200}&sort=${f.sort || ''}`);
-      rows = j.data || [];
-      note = `${rows.length} 行 · <b>本地查询，0 积分</b>`;
+      const size = Number(f.limit || 200) || 200;
+      f.limit = size;
+      f.offset = (page - 1) * size;
+      const qs = new URLSearchParams();
+      Object.entries(f).forEach(([k, v]) => {
+        if (v === '' || v == null || k === 'force') return;
+        qs.set(k, Array.isArray(v) ? v.join(',') : v);
+      });
+      const j = await api(`${cfg.api}?${qs.toString()}`);
+      const d0 = j.data || {};
+      rows = d0.rows || [];
+      d = { total: d0.total || 0, pages: Math.max(1, Math.ceil((d0.total || 0) / size)) };
+      note = `${rows.length} / ${fmt(d0.total || 0)} 行 · <b>本地查询，0 积分</b>`;
     } else if (tool === 'logs') {
       const j = await api(`/api/logs?limit=${f.limit || 50}`);
       rows = (j.data.recent || []).map(l => ({
@@ -1063,7 +1086,8 @@ document.addEventListener('click', e => {
       'var-list': () => loadVarList(b), 'var-chars': () => loadVarChars(b),
       'rev-stat': () => loadReview('stat', b), 'rev-words': () => loadReview('words', b),
       'rev-original': () => loadReview('original', b), 'rev-report': () => loadReview('report', b),
-      'rev-task': () => createRevTask(b), 'similar': () => loadSimilar(b)
+      'rev-task': () => createRevTask(b), 'similar': () => loadSimilar(b),
+      'profit': () => runProfit(b), 'export-report': () => exportReport(b)
     }[act];
     if (fn) { fn(); return; }
   }
@@ -1071,11 +1095,148 @@ document.addEventListener('click', e => {
   if (ch) loadVarTop(ch.dataset.char, ch);
 });
 
+/* ================= 阶段 3：收藏 / 利润模型 / 本地库筛选 / 选品报告 ================= */
+const favSet = new Set();
+
+async function loadFavorites() {
+  try {
+    const j = await api('/api/favorites?limit=2000');
+    (j.data.rows || []).forEach(r => favSet.add(String(r.sku)));
+  } catch (e) { /* 收藏是增强功能，失败不影响主流程 */ }
+}
+
+document.addEventListener('click', async e => {
+  const b = e.target.closest('[data-fav]');
+  if (!b) return;
+  e.preventDefault();
+  const sku = b.dataset.fav;
+  try {
+    const j = await api('/api/favorites/toggle', { method: 'POST', body: { sku } });
+    const on = !!(j.data && j.data.favorite);
+    on ? favSet.add(sku) : favSet.delete(sku);
+    b.classList.toggle('on', on);
+    b.textContent = on ? '★' : '☆';
+    toast(on ? `已收藏 ${sku}` : `已取消收藏 ${sku}`);
+  } catch (err) { toast(err.message, true); }
+});
+
+/* 利润参数：界面输入 → 参数对象，并在 localStorage 记忆 */
+const PROFIT_KEYS = ['cost_cny', 'rate_cny_rub', 'shipping_cny_per_kg', 'commission_pct',
+  'payment_pct', 'drr_pct', 'return_pct', 'target_margin_pct', 'volumetric_divisor'];
+const PROFIT_DEFAULTS = { cost_cny: '', rate_cny_rub: 12.5, shipping_cny_per_kg: 35,
+  commission_pct: 15, payment_pct: 2, drr_pct: '', return_pct: 0,
+  target_margin_pct: 20, volumetric_divisor: 5000 };
+
+function profitParams() {
+  const p = {};
+  PROFIT_KEYS.forEach(k => {
+    const el = $(`[data-profit="${k}"]`);
+    if (!el) return;
+    const v = String(el.value == null ? '' : el.value).trim();
+    p[k] = v === '' ? null : Number(v);
+  });
+  return p;
+}
+
+function saveProfitParams() {
+  const p = profitParams();
+  try { localStorage.setItem('sf_profit', JSON.stringify(p)); } catch (e) { }
+}
+
+function restoreProfitParams() {
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem('sf_profit') || '{}') || {}; } catch (e) { }
+  PROFIT_KEYS.forEach(k => {
+    const el = $(`[data-profit="${k}"]`);
+    if (!el) return;
+    const v = saved[k] != null ? saved[k] : PROFIT_DEFAULTS[k];
+    if (v != null) el.value = v;
+  });
+}
+
+async function runProfit(btn) {
+  if (!state.rows.length) return toast('先查询出商品', true);
+  if (!curToolHasProfit()) return toast('当前页面不支持利润计算', true);
+  saveProfitParams();
+  busy(btn, true, '计算中');
+  try {
+    const rows = state.rows.map(r => {
+      const o = {}; for (const k in r) if (k !== 'raw' && k !== 'opportunity_parts') o[k] = r[k];
+      return o;
+    });
+    const j = await api('/api/profit', { method: 'POST', body: { rows, params: profitParams() } });
+    const d = j.data || {};
+    state.profitRows = d.rows || [];
+    state.profitSummary = d.summary || null;
+    const onlyProfit = $('[data-profit-only]');
+    state.rows = (onlyProfit && onlyProfit.checked)
+      ? state.profitRows.filter(r => (Number(r.net_profit) || 0) > 0)
+      : state.profitRows;
+    state.lastCols = RESULT_COLS;
+    const tbox = $('[data-table]', panelOf(state.tool));
+    if (tbox && state.viewMode === 'card') renderCards(tbox, state.rows);
+    else renderTable(tbox, state.rows, RESULT_COLS);
+    const cnt = $('[data-count]', panelOf(state.tool)); if (cnt) cnt.textContent = fmt(state.rows.length);
+    const s = state.profitSummary || {};
+    const meta = $('[data-profit-meta]');
+    if (meta) meta.innerHTML = `已按你的成本模型重算 <b>${fmt(s.rows)}</b> 行`
+      + ` · 平均真毛利率 <b>${s.avg_net_margin == null ? '—' : s.avg_net_margin + '%'}</b>`
+      + ` · 平均净利 <b>${s.avg_net_profit == null ? '—' : money(s.avg_net_profit) + ' ₽'}</b>`
+      + ` · 亏损行 <b class="${(s.loss_rows || 0) ? 'warn' : ''}">${fmt(s.loss_rows)}</b>`
+      + ` · 平均计费重 ${s.avg_chargeable_kg == null ? '—' : s.avg_chargeable_kg + ' kg'}`
+      + `（0 积分，本地计算）`;
+    toast('利润已计算：' + (onlyProfit && onlyProfit.checked ? '已过滤为盈利行' : '全部行'));
+  } catch (e) { toast(e.message, true); }
+  finally { busy(btn, false); }
+}
+
+function curToolHasProfit() {
+  return ['select', 'category', 'shop', 'local_products'].includes(state.tool)
+    && !!$('#profitCard');
+}
+
+/* 选品报告：结论/参数 + 商品 + 收藏（多 sheet） */
+async function exportReport(btn) {
+  if (!state.rows.length) return toast('先查询出商品', true);
+  busy(btn, true, '导出中');
+  try {
+    const fav = await api('/api/favorites?limit=2000').catch(() => ({ data: { rows: [] } }));
+    const s = state.profitSummary || {};
+    const meta = {
+      '导出时间': new Date().toLocaleString('zh-CN'),
+      '页面': state.tool,
+      '筛选条件': JSON.stringify(collectForm(state.tool)),
+      '利润参数': JSON.stringify(profitParams()),
+      '命中总数': state.lastPageInfo && state.lastPageInfo.total != null ? state.lastPageInfo.total : '',
+      '本表行数': state.rows.length,
+      '平均真毛利率%': s.avg_net_margin == null ? '' : s.avg_net_margin,
+      '平均净利₽': s.avg_net_profit == null ? '' : s.avg_net_profit,
+      '亏损行数': s.loss_rows == null ? '' : s.loss_rows,
+    };
+    const rows = state.rows.map(r => {
+      const o = {}; for (const k in r) if (k !== 'raw' && k !== 'opportunity_parts') o[k] = r[k];
+      return o;
+    });
+    const body = { kind: 'report', rows, meta, favorites: (fav.data.rows || []),
+      filename: 'seerfar_report_' + new Date().toISOString().slice(0, 10) };
+    if (state.tool === 'hotwords' || state.tool === 'mining' || state.tool === 'backsearch') {
+      body.keywords = rows; body.rows = [];
+    }
+    const j = await api('/api/export', { method: 'POST', body });
+    const a = document.createElement('a'); a.href = j.data.url; a.download = j.data.file;
+    document.body.appendChild(a); a.click(); a.remove();
+    toast('报告已导出：' + j.data.file);
+  } catch (e) { toast(e.message, true); }
+  finally { busy(btn, false); }
+}
+
 /* ---------- 启动（多页面：只初始化当前页） ---------- */
 
 const _q = new URLSearchParams(location.search);
 $$('[data-viewmode]').forEach(b => b.classList.toggle('on', b.dataset.viewmode === state.viewMode));
 refreshStatus();
+loadFavorites();
+restoreProfitParams();
 bindSidebar();
 if ($('#catTree')) {
   loadCats();

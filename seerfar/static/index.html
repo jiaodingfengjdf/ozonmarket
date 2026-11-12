@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -208,6 +208,29 @@
       </form>
 
       <section class="summary" data-summary></section>
+
+      <section class="filtercard" id="profitCard">
+        <div class="fall">
+          <div class="field"><label class="flab">采购价 CNY</label><div class="fctl"><input class="innum" type="number" step="0.01" data-profit="cost_cny" placeholder="单件"></div></div>
+          <div class="field"><label class="flab">汇率 CNY→₽</label><div class="fctl"><input class="innum" type="number" step="0.01" data-profit="rate_cny_rub" placeholder="12.5"></div></div>
+          <div class="field"><label class="flab">头程 CNY/kg</label><div class="fctl"><input class="innum" type="number" step="0.1" data-profit="shipping_cny_per_kg" placeholder="35"></div></div>
+          <div class="field"><label class="flab">佣金%</label><div class="fctl"><input class="innum" type="number" step="0.1" data-profit="commission_pct" placeholder="15"></div></div>
+          <div class="field"><label class="flab">支付/结算%</label><div class="fctl"><input class="innum" type="number" step="0.1" data-profit="payment_pct" placeholder="2"></div></div>
+          <div class="field"><label class="flab">广告 DRR% <i class="tip">留空=用商品自带</i></label><div class="fctl"><input class="innum" type="number" step="0.1" data-profit="drr_pct" placeholder="自动"></div></div>
+          <div class="field"><label class="flab">退货损耗%</label><div class="fctl"><input class="innum" type="number" step="0.1" data-profit="return_pct" placeholder="0"></div></div>
+          <div class="field"><label class="flab">目标毛利%</label><div class="fctl"><input class="innum" type="number" step="0.1" data-profit="target_margin_pct" placeholder="20"></div></div>
+          <div class="field"><label class="flab">体积重系数</label><div class="fctl"><input class="innum" type="number" data-profit="volumetric_divisor" placeholder="5000"></div></div>
+          <div class="field"><label class="flab">只看盈利</label><div class="fctl radios">
+            <label><input type="checkbox" data-profit-only><span>净利 &gt; 0</span></label></div></div>
+        </div>
+        <div class="formfoot">
+          <div class="foot-left"><span class="tiny" data-profit-meta>按「采购价 + 头程 + 佣金 + 广告 + 退货」重算净利/真毛利/保本价，本地计算 0 积分</span></div>
+          <div class="foot-right">
+            <button type="button" class="btn ghost" data-act="profit">计算利润</button>
+            <button type="button" class="btn ghost" data-act="export-report">导出选品报告</button>
+          </div>
+        </div>
+      </section>
       <section class="resultcard">
         <div class="resulthead">
           <div class="resultr"><h3>商品明细</h3><span class="badge solid" data-count>0</span><span class="muted" data-note>查询后显示</span></div>

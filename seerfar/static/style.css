@@ -462,3 +462,8 @@ td.dim{color:var(--muted)}
 .revtext{font-size:12.8px;line-height:1.6;color:#2a3550;white-space:pre-wrap}
 .revphotos{display:flex;gap:6px;margin-top:7px}
 .revphotos img{width:54px;height:54px;object-fit:cover;border-radius:6px;border:1px solid #e6edf8}
+/* ===== 阶段3：收藏 / 利润 ===== */
+.favbtn{background:none;border:none;cursor:pointer;font-size:16px;line-height:1;color:#c3ccdb;padding:0 2px}
+.favbtn.on{color:#f5a524}
+.favbtn:hover{color:#f59e0b}
+td .favbtn{display:inline-block}

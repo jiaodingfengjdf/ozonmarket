@@ -204,6 +204,9 @@ def main():
     p.add_argument("--limit", type=int, default=1000)
     p.add_argument("--file", default=None)
 
+    p = sub.add_parser("rescore", help="重算本地库机会分（从 raw 还原，0 积分）")
+    p.add_argument("--limit", type=int, default=100000)
+
     p = sub.add_parser("cache-clear", help="清空 API 缓存（需 --yes）")
     p.add_argument("--path", default=None, help="按路径模糊匹配")
     p.add_argument("--yes", action="store_true")
@@ -232,6 +235,31 @@ def main():
                 rows = STORE.keywords(limit=a.limit)
                 p = export_keywords(rows, a.file)
             print("已导出:", p, "行数:", len(rows))
+            return 0
+        if a.cmd == "rescore":
+            import json
+            from sf_select import norm_product, opportunity
+            rows = STORE.q("SELECT sku, raw FROM product LIMIT ?", (a.limit,))
+            done, from_raw = 0, 0
+            batch = []
+            for r in rows:
+                try:
+                    raw = json.loads(r["raw"]) if r.get("raw") else {}
+                except (ValueError, TypeError):
+                    raw = {}
+                if raw:
+                    p = norm_product(raw)
+                    p["sku"] = r["sku"]
+                    from_raw += 1
+                else:
+                    p = {k: r.get(k) for k in ("sku", "sales", "revenue", "sales_rate",
+                                               "review_count", "variants", "gross_margin",
+                                               "conv_to_cart_pdp")}
+                p["opportunity"] = opportunity(p, "product")["score"]
+                batch.append(p)
+                done += 1
+            STORE.upsert_products(batch)
+            print("已重算机会分:", done, "（其中从 raw 还原:", from_raw, "）")
             return 0
         if a.cmd == "cache-clear":
             if not a.yes:

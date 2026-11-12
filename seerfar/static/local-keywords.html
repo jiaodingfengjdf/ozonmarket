@@ -44,17 +44,33 @@
       </div>
       <form class="filtercard" data-tool="local_keywords" autocomplete="off">
         <div class="fall">
-          <div class="field"><label class="flab">条数</label><div class="fctl">
-            <input class="innum" type="number" data-f="limit" value="200" min="1" max="2000"></div></div>
-          <div class="field"><label class="flab">排序</label><div class="fctl">
+          <div class="field span2"><label class="flab">搜索</label><div class="fctl">
+            <input class="inwide" data-f="q" placeholder="关键词 / 中文词 关键字"></div></div>
+          <div class="field"><label class="flab">月搜索量</label><div class="fctl range">
+            <input class="innum" type="number" data-f="search_volume_min" placeholder="最低"><span class="dash">—</span><input class="innum" type="number" data-f="search_volume_max" placeholder="最高"></div></div>
+          <div class="field"><label class="flab">30天增长%</label><div class="fctl range">
+            <input class="innum" type="number" data-f="growth30_min" placeholder="最低"><span class="dash">—</span><input class="innum" type="number" data-f="growth30_max" placeholder="最高"></div></div>
+          <div class="field"><label class="flab">市场空间</label><div class="fctl range">
+            <input class="innum" type="number" data-f="market_space_min" placeholder="最低"><span class="dash">—</span><input class="innum" type="number" data-f="market_space_max" placeholder="最高"></div></div>
+          <div class="field"><label class="flab">机会分</label><div class="fctl range">
+            <input class="innum" type="number" data-f="opportunity_min" placeholder="最低"><span class="dash">—</span><input class="innum" type="number" data-f="opportunity_max" placeholder="最高"></div></div>
+          <div class="field"><label class="flab">来源</label><div class="fctl">
+            <select class="insm" data-f="kind"><option value="">全部</option><option value="market">市场热词</option>
+              <option value="mining">关键词挖掘</option><option value="backsearch">关键词反查</option></select></div></div>
+          <div class="field"><label class="flab">条数 / 排序</label><div class="fctl">
+            <input class="innum" type="number" data-f="limit" value="200" min="1" max="2000">
             <select class="insm" data-f="sort"><option value="search_volume">月搜索量</option><option value="growth30">30天增长</option>
               <option value="competing_products">竞品数</option><option value="sellers">卖家数</option>
-              <option value="market_space">市场空间</option><option value="updated_at">最近更新</option></select>
+              <option value="market_space">市场空间</option><option value="opportunity">机会分</option>
+              <option value="title_density">标题密度</option><option value="relevancy">相关度</option>
+              <option value="updated_at">最近更新</option></select>
             <select class="inxs" data-f="direction"><option value="DESC">降序</option><option value="ASC">升序</option></select></div></div>
         </div>
+        <div class="applied-bar"><span class="applied-lab">已选条件</span><div class="applied-tags" data-tags><span class="muted">无</span></div></div>
         <div class="formfoot">
-          <div class="foot-left"><span class="tiny">本地 SQLite 查询，不消耗积分</span></div>
-          <div class="foot-right"><button type="submit" class="btn primary"><span class="btnlabel">查询本地库</span></button></div>
+          <div class="foot-left"><span class="tiny">本地 SQLite 查询，不消耗积分（含筛选与分页）</span></div>
+          <div class="foot-right"><button type="button" class="btn ghost" data-reset>重置</button>
+            <button type="submit" class="btn primary"><span class="btnlabel">查询本地库</span></button></div>
         </div>
       </form>
       <section class="resultcard">
@@ -65,6 +81,7 @@
         <div class="statusline" data-meta>本地 SQLite 查询，<b>不消耗积分</b>。</div>
         <div class="tablewrap" data-table><div class="placeholder"><div class="ph-icon">◈</div><div class="ph-title">还没有查询结果</div>
           <div class="ph-desc">点「查询本地库」查看已落库的关键词</div></div></div>
+        <div class="pager" data-pager></div>
       </section>
     </section>
 

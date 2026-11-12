@@ -103,6 +103,14 @@ CREATE TABLE IF NOT EXISTS product (
 );
 CREATE INDEX IF NOT EXISTS idx_prod_cat ON product(category_id);
 
+-- 阶段3 扩展列（旧库通过 _migrate 自动补列）
+CREATE TABLE IF NOT EXISTS favorite (
+  sku        TEXT PRIMARY KEY,
+  tags       TEXT DEFAULT '',
+  note       TEXT DEFAULT '',
+  created_at REAL NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS product_snapshot (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
   sku           TEXT,
@@ -153,6 +161,93 @@ CREATE TABLE IF NOT EXISTS meta (
 """
 
 
+# ---------- 阶段3：扩展列与本地筛选白名单 ----------
+PRODUCT_EXT = {
+    "weight": "REAL", "volume": "REAL", "dimension": "TEXT",
+    "gross_margin": "REAL", "drr": "REAL",
+    "conv_to_cart_pdp": "REAL", "conv_to_cart_search": "REAL",
+    "conv_view_to_order": "REAL", "order_conversion_rate": "REAL",
+    "return_cancellation_rate": "REAL", "variants": "REAL", "qa": "REAL",
+    "views": "REAL", "session_count": "REAL", "session_count_search": "REAL",
+    "sales_rate": "REAL", "revenue_rate": "REAL", "up_days": "REAL", "up_months": "REAL",
+    "discount": "REAL", "promo_revenue_share": "REAL", "missed_revenue": "REAL",
+    "profit": "REAL", "cross_border": "INTEGER", "fulfillment": "TEXT",
+    "seller_id": "TEXT", "brand_id": "TEXT", "labels_text": "TEXT",
+    "opportunity": "REAL", "net_profit": "REAL", "net_margin": "REAL",
+    "breakeven": "REAL", "suggested": "REAL",
+}
+KEYWORD_EXT = {"title_density": "REAL", "relevancy": "REAL",
+               "word_count": "REAL", "opportunity": "REAL"}
+
+PRODUCT_FILTER_NUM = [
+    "price", "sales", "revenue", "review_count", "review_rating", "gross_margin", "drr",
+    "conv_to_cart_pdp", "order_conversion_rate", "return_cancellation_rate", "variants",
+    "weight", "volume", "qa", "views", "session_count_search", "session_count",
+    "opportunity", "sales_rate", "revenue_rate", "net_profit", "net_margin", "up_days",
+]
+PRODUCT_SORT_FIELDS = set(PRODUCT_FILTER_NUM) | {
+    "sku", "title", "brand", "seller", "category_cn", "updated_at", "breakeven", "suggested"}
+KEYWORD_FILTER_NUM = ["search_volume", "growth30", "competing_products", "sellers",
+                      "avg_price", "conversion_sharing", "market_space", "title_density",
+                      "relevancy", "word_count", "opportunity"]
+KEYWORD_SORT_FIELDS = set(KEYWORD_FILTER_NUM) | {"query", "query_cn", "updated_at"}
+
+
+def _n(v):
+    try:
+        f = float(v)
+        return f if f == f and abs(f) != float("inf") else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _range_sql(fields, f, where, args):
+    for k in fields:
+        lo, hi = _n(f.get(k + "_min")), _n(f.get(k + "_max"))
+        if lo is not None:
+            where.append(f"{k} >= ?")
+            args.append(lo)
+        if hi is not None:
+            where.append(f"{k} <= ?")
+            args.append(hi)
+
+
+def product_where(f: dict):
+    f = f or {}
+    where, args = [], []
+    q = str(f.get("q") or "").strip()
+    if q:
+        like = f"%{q}%"
+        where.append("(title LIKE ? OR brand LIKE ? OR seller LIKE ? OR category_cn LIKE ? OR sku LIKE ?)")
+        args += [like] * 5
+    for k in ("category_id", "seller", "brand"):
+        v = f.get(k)
+        if v:
+            where.append(f"{k} = ?")
+            args.append(str(v))
+    _range_sql(PRODUCT_FILTER_NUM, f, where, args)
+    if f.get("favorite_only"):
+        where.append("sku IN (SELECT sku FROM favorite)")
+    if str(f.get("has_opportunity") or "") in ("1", "true"):
+        where.append("opportunity IS NOT NULL")
+    return (" AND ".join(where), args)
+
+
+def keyword_where(f: dict):
+    f = f or {}
+    where, args = [], []
+    q = str(f.get("q") or "").strip()
+    if q:
+        like = f"%{q}%"
+        where.append("(query LIKE ? OR query_cn LIKE ?)")
+        args += [like, like]
+    if f.get("kind"):
+        where.append("kind = ?")
+        args.append(str(f["kind"]))
+    _range_sql(KEYWORD_FILTER_NUM, f, where, args)
+    return (" AND ".join(where), args)
+
+
 class Store:
     """SQLite 封装。所有方法线程安全。"""
 
@@ -179,6 +274,18 @@ class Store:
         with self._wlock:
             self.conn.executescript(SCHEMA)
             self.conn.commit()
+        self._migrate()
+
+    def _migrate(self):
+        """旧库自动补列（阶段3 扩字段），幂等。"""
+        for table, ext in (("product", PRODUCT_EXT), ("keyword", KEYWORD_EXT)):
+            have = {r["name"] for r in self.q(f"PRAGMA table_info({table})")}
+            for col, typ in ext.items():
+                if col not in have:
+                    self.exec(f"ALTER TABLE {table} ADD COLUMN {col} {typ}")
+        self.exec("CREATE INDEX IF NOT EXISTS idx_prod_opp ON product(opportunity)")
+        self.exec("CREATE INDEX IF NOT EXISTS idx_prod_margin ON product(net_margin)")
+        self.exec("CREATE INDEX IF NOT EXISTS idx_kw_opp ON keyword(opportunity)")
 
     # ---------- 基础 ----------
     def q(self, sql, args=()):
@@ -357,32 +464,23 @@ class Store:
         return [r["id"] for r in rows]
 
     # ---------- 商品 ----------
+    _PRODUCT_BASE = ("sku", "title", "brand", "seller", "price", "sales", "revenue",
+                     "review_count", "review_rating", "category_id", "category_cn",
+                     "image_url", "product_url", "up_time", "seller_type")
+
     def upsert_products(self, rows):
-        sql = (
-            "INSERT INTO product(sku,title,brand,seller,price,sales,revenue,review_count,"
-            "review_rating,category_id,category_cn,image_url,product_url,up_time,"
-            "seller_type,raw,updated_at) VALUES("
-            ":sku,:title,:brand,:seller,:price,:sales,:revenue,:review_count,"
-            ":review_rating,:category_id,:category_cn,:image_url,:product_url,:up_time,"
-            ":seller_type,:raw,:updated_at) ON CONFLICT(sku) DO UPDATE SET "
-            "title=excluded.title,brand=excluded.brand,seller=excluded.seller,"
-            "price=excluded.price,sales=excluded.sales,revenue=excluded.revenue,"
-            "review_count=excluded.review_count,review_rating=excluded.review_rating,"
-            "category_id=excluded.category_id,category_cn=excluded.category_cn,"
-            "image_url=excluded.image_url,product_url=excluded.product_url,"
-            "up_time=excluded.up_time,seller_type=excluded.seller_type,"
-            "raw=excluded.raw,updated_at=excluded.updated_at"
-        )
+        cols = list(self._PRODUCT_BASE) + list(PRODUCT_EXT)
+        sql = ("INSERT INTO product(" + ",".join(cols) + ") VALUES("
+               + ",".join(":" + c for c in cols) + ") ON CONFLICT(sku) DO UPDATE SET "
+               + ",".join(f"{c}=excluded.{c}" for c in cols if c != "sku"))
         now = time.time()
-        keys = ("sku", "title", "brand", "seller", "price", "sales", "revenue",
-                "review_count", "review_rating", "category_id", "category_cn",
-                "image_url", "product_url", "up_time", "seller_type")
         seq = []
         for r in rows:
             if not r.get("sku"):
                 continue
-            d = {k: r.get(k) for k in keys}
+            d = {c: r.get(c) for c in cols}
             d["sku"] = str(d["sku"])
+            d["fulfillment"] = r.get("fulfillment_text") or r.get("fulfillment")
             d["raw"] = dumps(r.get("raw") or r)
             d["updated_at"] = now
             seq.append(d)
@@ -396,14 +494,62 @@ class Store:
 
     def products(self, where="", args=(), order="revenue", direction="DESC",
                  limit=50, offset=0):
-        allowed = {"sku", "title", "brand", "seller", "price", "sales", "revenue",
-                   "review_count", "review_rating", "category_cn", "updated_at"}
+        allowed = PRODUCT_SORT_FIELDS
         if order not in allowed:
             order = "revenue"
         direction = "ASC" if str(direction).upper() == "ASC" else "DESC"
         sql = "SELECT * FROM product" + ((" WHERE " + where) if where else "")
         sql += f" ORDER BY {order} {direction} LIMIT ? OFFSET ?"
         return self.q(sql, tuple(args) + (int(limit), int(offset)))
+
+    def products_page(self, filters=None, order="revenue", direction="DESC",
+                      limit=50, offset=0):
+        """本地库筛选 + 分页：返回 (rows, total)。0 积分。"""
+        where, args = product_where(filters or {})
+        tail = (" WHERE " + where) if where else ""
+        total = self.q1("SELECT COUNT(*) AS n FROM product" + tail, tuple(args))
+        rows = self.products(where, args, order, direction, limit, offset)
+        return rows, (total["n"] if total else 0)
+
+    def product_by_sku(self, sku):
+        return self.q1("SELECT * FROM product WHERE sku=?", (str(sku),))
+
+    def update_profit(self, rows):
+        """把利润计算结果写回本地库（net_profit / net_margin / breakeven / suggested）。"""
+        seq = []
+        for r in rows:
+            if not r.get("sku"):
+                continue
+            seq.append({"sku": str(r["sku"]), "net_profit": _n(r.get("net_profit")),
+                        "net_margin": _n(r.get("net_margin")),
+                        "breakeven": _n(r.get("breakeven")),
+                        "suggested": _n(r.get("suggested"))})
+        if seq:
+            self.execmany(
+                "UPDATE product SET net_profit=:net_profit, net_margin=:net_margin, "
+                "breakeven=:breakeven, suggested=:suggested WHERE sku=:sku", seq)
+        return len(seq)
+
+    # ---------- 收藏 ----------
+    def favorite_toggle(self, sku, tags="", note=""):
+        sku = str(sku)
+        hit = self.q1("SELECT sku FROM favorite WHERE sku=?", (sku,))
+        if hit:
+            self.exec("DELETE FROM favorite WHERE sku=?", (sku,))
+            return {"sku": sku, "favorite": False}
+        self.exec("INSERT INTO favorite(sku,tags,note,created_at) VALUES(?,?,?,?)",
+                  (sku, tags or "", note or "", time.time()))
+        return {"sku": sku, "favorite": True}
+
+    def favorites(self, limit=2000):
+        return self.q("SELECT f.sku, f.tags, f.note, f.created_at, p.title, p.price, p.sales, "
+                      "p.revenue, p.review_rating, p.review_count, p.opportunity, p.net_margin, "
+                      "p.category_cn, p.image_url, p.product_url "
+                      "FROM favorite f LEFT JOIN product p ON p.sku=f.sku "
+                      "ORDER BY f.created_at DESC LIMIT ?", (int(limit),))
+
+    def favorite_sku_set(self):
+        return {r["sku"] for r in self.q("SELECT sku FROM favorite")}
 
     def snapshot(self, sku, row):
         self.exec(
@@ -414,27 +560,19 @@ class Store:
              row.get("stock"), dumps(row)))
 
     # ---------- 关键词 ----------
-    def upsert_keywords(self, rows, kind=""):
-        sql = (
-            "INSERT INTO keyword(id,query,query_cn,kind,search_volume,growth30,"
-            "competing_products,sellers,avg_price,conversion_sharing,market_space,"
-            "categories,raw,updated_at) VALUES("
-            ":id,:query,:query_cn,:kind,:search_volume,:growth30,:competing_products,"
-            ":sellers,:avg_price,:conversion_sharing,:market_space,:categories,:raw,:updated_at) "
-            "ON CONFLICT(id) DO UPDATE SET query=excluded.query,query_cn=excluded.query_cn,"
-            "kind=excluded.kind,search_volume=excluded.search_volume,growth30=excluded.growth30,"
-            "competing_products=excluded.competing_products,sellers=excluded.sellers,"
-            "avg_price=excluded.avg_price,conversion_sharing=excluded.conversion_sharing,"
-            "market_space=excluded.market_space,categories=excluded.categories,"
-            "raw=excluded.raw,updated_at=excluded.updated_at"
-        )
-        now = time.time()
-        keys = ("id", "query", "query_cn", "kind", "search_volume", "growth30",
+    _KW_BASE = ("id", "query", "query_cn", "kind", "search_volume", "growth30",
                 "competing_products", "sellers", "avg_price", "conversion_sharing",
-                "market_space")
+                "market_space", "categories")
+
+    def upsert_keywords(self, rows, kind=""):
+        cols = list(self._KW_BASE) + list(KEYWORD_EXT)
+        sql = ("INSERT INTO keyword(" + ",".join(cols) + ") VALUES("
+               + ",".join(":" + c for c in cols) + ") ON CONFLICT(id) DO UPDATE SET "
+               + ",".join(f"{c}=excluded.{c}" for c in cols if c != "id"))
+        now = time.time()
         seq = []
         for r in rows:
-            d = {k: r.get(k) for k in keys}
+            d = {c: r.get(c) for c in cols}
             d["id"] = str(r.get("id") or (kind + ":" + str(r.get("query") or "")))
             d["kind"] = kind or r.get("kind") or ""
             d["categories"] = dumps(r.get("categories") or [])
@@ -450,14 +588,19 @@ class Store:
         return r["n"] if r else 0
 
     def keywords(self, where="", args=(), order="search_volume", limit=50, offset=0):
-        allowed = {"query", "query_cn", "search_volume", "growth30",
-                   "competing_products", "sellers", "avg_price", "conversion_sharing",
-                   "market_space", "updated_at", "kind"}
+        allowed = KEYWORD_SORT_FIELDS
         if order not in allowed:
             order = "search_volume"
+        direction = "ASC" if str(order) in ("query", "query_cn") else "DESC"
         sql = "SELECT * FROM keyword" + ((" WHERE " + where) if where else "")
-        sql += f" ORDER BY {order} DESC LIMIT ? OFFSET ?"
+        sql += f" ORDER BY {order} {direction} LIMIT ? OFFSET ?"
         return self.q(sql, tuple(args) + (int(limit), int(offset)))
+
+    def keywords_page(self, filters=None, order="search_volume", limit=50, offset=0):
+        where, args = keyword_where(filters or {})
+        tail = (" WHERE " + where) if where else ""
+        total = self.q1("SELECT COUNT(*) AS n FROM keyword" + tail, tuple(args))
+        return self.keywords(where, args, order, limit, offset), (total["n"] if total else 0)
 
     # ---------- 店铺 / meta ----------
     def upsert_shop(self, row):

@@ -123,3 +123,27 @@ def export_full(products=None, keywords=None, overview=None, filename=None):
     if not sheets:
         sheets.append(("空", [], [("提示", "msg")]))
     return export_workbook(sheets, filename)
+
+
+def export_report(products=None, keywords=None, favorites=None, meta=None,
+                  overview=None, filename=None, out_dir=None):
+    """阶段3：选品报告（多 sheet）—— 结论/参数 → 商品 → 关键词 → 收藏。"""
+    sheets = []
+    kv_cols = [("项目", "k"), ("值", "v")]
+    if meta:
+        sheets.append(("选品结论", [{"k": k, "v": _cell(v)} for k, v in meta.items()], kv_cols))
+    if overview:
+        sheets.append(("类目大盘", [{"k": k, "v": _cell(v)} for k, v in overview.items()], kv_cols))
+    if products:
+        sheets.append(("商品清单", products, PRODUCT_COLUMNS))
+    if keywords:
+        sheets.append(("关键词", keywords, KEYWORD_COLUMNS))
+    if favorites:
+        fav_cols = [("SKU", "sku"), ("标题", "title"), ("标签", "tags"), ("备注", "note"),
+                    ("价格₽", "price"), ("月销量", "sales"), ("月销额₽", "revenue"),
+                    ("评分", "review_rating"), ("机会分", "opportunity"),
+                    ("真毛利率%", "net_margin"), ("类目", "category_cn")]
+        sheets.append(("收藏清单", favorites, fav_cols))
+    if not sheets:
+        sheets.append(("空", [], [("提示", "msg")]))
+    return export_workbook(sheets, filename or "seerfar_report", out_dir)
