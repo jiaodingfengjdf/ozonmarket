@@ -141,6 +141,8 @@ class Handler(BaseHTTPRequestHandler):
         p, qs = u.path, parse_qs(u.query)
         one = lambda k, d=None: (qs.get(k) or [d])[0]
         try:
+            if p in ("/app", "/app/") or p.startswith("/app/"):
+                return self.static("vue/index.html")      # Vue SPA（hash 路由）
             if p in self.PAGES:
                 return self.static(self.PAGES[p])
             if p.startswith("/static/"):

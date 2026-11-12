@@ -466,8 +466,15 @@ def build_content(rec, main_payload, sku="", source="ozon-composer-http", page2_
     if len(ld_desc) > len(desc):
         desc = ld_desc
     rich = rec.get("rich_description")
-    if isinstance(rich, str) and "<" in rich:
-        rich = _sanitize_html(rich)
+    if isinstance(rich, str):
+        head = rich.strip()[:1]
+        if head in ("{", "["):
+            try:
+                rich = json.loads(rich)          # pdp 会把 richAnnotationJson 序列化成字符串
+            except ValueError:
+                pass
+        elif "<" in rich:
+            rich = _sanitize_html(rich)
     if not rich:
         rich = rich_obj
 

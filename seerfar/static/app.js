@@ -809,8 +809,18 @@ async function doExport(rows, kind, btn) {
 }
 
 /* ---------- 商品抽屉（表格点 SKU）：只展示 0 积分的 Ozon 内容 ---------- */
+function openDrawerShell() {
+  const d = $('#drawer');
+  d.classList.remove('hidden');
+  requestAnimationFrame(() => d.classList.add('open'));
+}
+function closeDrawer() {
+  const d = $('#drawer');
+  d.classList.remove('open');
+  setTimeout(() => d.classList.add('hidden'), 420);
+}
 async function openDrawer(sku) {
-  $('#drawer').classList.remove('hidden'); $('#drawerTitle').textContent = '商品 ' + sku;
+  openDrawerShell(); $('#drawerTitle').textContent = '商品 ' + sku;
   // 抽屉不调用 Seerfar（查一次竞品详情约 9~10 积分），只展示 composer 抓来的内容
   $('#drawerBody').innerHTML =
     `<div data-drawer-content class="drawer-content">
@@ -822,11 +832,11 @@ async function openDrawer(sku) {
      </div>`;
   loadDrawerContent(sku);
 }
-$('#drawerClose').addEventListener('click', () => $('#drawer').classList.add('hidden'));
-$('#drawer').addEventListener('click', e => { if (e.target.id === 'drawer') e.currentTarget.classList.add('hidden'); });
+$('#drawerClose').addEventListener('click', closeDrawer);
+$('#drawer').addEventListener('click', e => { if (e.target.id === 'drawer') closeDrawer(); });
 $('#btnRefresh').addEventListener('click', refreshStatus);
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') $('#drawer').classList.add('hidden');
+  if (e.key === 'Escape') closeDrawer();
   if (e.key === 'Enter' && e.target.closest('form[data-tool]') && e.target.tagName !== 'BUTTON') {
     e.preventDefault();
     const form = e.target.closest('form[data-tool]'), tool = form.dataset.tool;
@@ -1223,7 +1233,40 @@ async function exportReport(btn) {
   finally { busy(btn, false); }
 }
 
-/* ---------- 商品内容（Ozon composer：属性/描述/变体/图片/标签） ---------- */
+/* 富文本块渲染：raTextBlock → 段落；raShowcase/roll → 图片瀑布；其它 → 折叠 JSON */
+function renderRich(rich) {
+  if (!rich) return `<h4>富文本</h4><div class="empty">该商品没有富文本块（只有纯文本描述）。</div>`;
+  if (typeof rich === 'string') {
+    return `<h4>富文本</h4><div class="richdesc">${rich}</div>`;
+  }
+  const blocks = Array.isArray(rich.content) ? rich.content : [];
+  if (!blocks.length) {
+    return `<h4>富文本</h4><pre class="json">${esc(JSON.stringify(rich, null, 2)).slice(0, 6000)}</pre>`;
+  }
+  const parts = [];
+  let textCount = 0, imgCount = 0;
+  for (const b of blocks) {
+    const name = b.widgetName || '';
+    if (b.text && Array.isArray(b.text.content)) {
+      const t = b.text.content.join(' ').trim();
+      if (t) { parts.push(`<p>${esc(t)}</p>`); textCount++; }
+    }
+    const imgs = [];
+    for (const blk of (b.blocks || [])) {
+      if (blk && blk.img && blk.img.src) imgs.push(blk.img.src);
+    }
+    if (imgs.length) {
+      imgCount += imgs.length;
+      parts.push(`<div class="richimgs">` + imgs.map(u =>
+        `<a href="${esc(u)}" target="_blank" rel="noopener"><img src="${esc(u)}" loading="lazy"></a>`).join('') + `</div>`);
+    }
+    if (name === 'raShowcase' || name === 'raTextBlock') continue;
+    parts.push(`<details class="richraw"><summary>原始块：${esc(name || 'unknown')}</summary><pre class="json">${esc(JSON.stringify(b, null, 2)).slice(0, 2000)}</pre></details>`);
+  }
+  return `<h4>富文本（${textCount ? textCount + ' 段文字' : ''}${textCount && imgCount ? ' · ' : ''}${imgCount ? imgCount + ' 张图' : ''}）</h4>
+    <div class="richdesc">${parts.join('')}</div>`;
+}
+
 function renderContent(box, d) {
   if (!box) return;
   const attrs = d.attributes || [], aspects = d.aspects || [], images = d.images || [], tags = d.tags || [];
@@ -1247,11 +1290,7 @@ function renderContent(box, d) {
   const tagbox = tags.length
     ? `<h4>标签（${tags.length}）</h4><div class="wchips">${tags.map(t => `<span class="wchip">${esc(t)}</span>`).join('')}</div>`
     : '';
-  const rich = d.rich
-    ? (typeof d.rich === 'string'
-      ? `<h4>富文本</h4><div class="richdesc">${d.rich}</div>`
-      : `<h4>富文本（${(d.rich.content || []).length} 个块）</h4><pre class="json">${esc(JSON.stringify(d.rich, null, 2)).slice(0, 6000)}</pre>`)
-    : `<h4>富文本</h4><div class="empty">该商品没有富文本块（只有纯文本描述）。</div>`;
+  const rich = renderRich(d.rich);
   const ex = d.extra || {};
   const exRows = [
     ['卖家', ex.seller], ['公司', ex.seller_company], ['工商注册号', ex.seller_psrn],
@@ -1321,11 +1360,49 @@ async function loadDrawerContent(sku) {
   } finally { _contentBusy.delete(sku); }
 }
 
+/* ---------- 视觉细节：滚动阴影 / 滚入淡入 / 错峰入场 ---------- */
+function initVisualFx() {
+  const bar = document.querySelector('.topbar');
+  const onScroll = () => { if (bar) bar.classList.toggle('scrolled', window.scrollY > 6); };
+  window.addEventListener('scroll', onScroll, { passive: true }); onScroll();
+
+  const targets = document.querySelectorAll('.main > *, .sidebar, .resultcard, .filtercard, .presets');
+  if ('IntersectionObserver' in window && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    const io = new IntersectionObserver((es) => {
+      es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });
+    }, { rootMargin: '0px 0px -40px 0px', threshold: 0.05 });
+    targets.forEach((el, i) => {
+      if (el.classList.contains('in')) return;
+      el.classList.add('reveal');
+      el.style.transitionDelay = Math.min(i * 40, 220) + 'ms';
+      io.observe(el);
+    });
+  }
+  // 指标卡数字滚动
+  document.querySelectorAll('.card-grid .card b').forEach(b => {
+    const raw = b.textContent.trim();
+    const m = raw.replace(/\s|,|₽/g, '');
+    if (!/^-?\d+(\.\d+)?$/.test(m)) return;
+    const target = parseFloat(m), dec = (m.split('.')[1] || '').length;
+    if (Math.abs(target) < 10) return;
+    let s = null;
+    const step = (ts) => {
+      if (s === null) s = ts;
+      const p = Math.min((ts - s) / 620, 1);
+      const eased = 1 - Math.pow(1 - p, 3);
+      const v = target * eased;
+      b.textContent = (dec ? v.toFixed(dec) : Math.round(v)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + (raw.endsWith('₽') ? ' ₽' : '');
+      if (p < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  });
+}
 /* ---------- 启动（多页面：只初始化当前页） ---------- */
 
 const _q = new URLSearchParams(location.search);
 $$('[data-viewmode]').forEach(b => b.classList.toggle('on', b.dataset.viewmode === state.viewMode));
 refreshStatus();
+initVisualFx();
 loadFavorites();
 restoreProfitParams();
 bindSidebar();
