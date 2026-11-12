@@ -458,7 +458,7 @@
         } else {
           // 父类目：记自身；按开关决定是否补三级（Ozon 只认三级，不补通常查不到商品）
           selectedCats.value.push({ id: n.id, name: n.name });
-          if (autoLeaves.value) {
+          {
             const j = await api('/api/category/leaves?parent=' + encodeURIComponent(n.id) + '&limit=20');
             const leaves = (j.data || []);
             leaves.forEach(l => {
@@ -500,8 +500,6 @@
       });
       /* 搜索：走后端全库检索（10k 类目），而不是只过滤已加载的一级节点 */
       const catHits = ref([]), catSearching = ref(false);
-      const autoLeaves = ref(localStorage.getItem('sf_autoleaves') !== '0');
-      watch(autoLeaves, v => localStorage.setItem('sf_autoleaves', v ? '1' : '0'));
       const autoIds = computed(() => new Set(selectedCats.value.filter(c => c.auto).map(c => c.id)));
       let catTimer = null;
       watch(catSearch, (v) => {
@@ -880,7 +878,7 @@
       }
       return {
         nav, page, cfg, route, status, loading, rows, note, pageNo, pageMeta, viewMode,
-        formEl, quickDays, activePreset, cats, flatCat, selectedIds, displayList, catHits, catSearching, autoLeaves, autoIds, parentPath,
+        formEl, quickDays, activePreset, cats, flatCat, selectedIds, displayList, catHits, catSearching, autoIds, parentPath,
         thumbSize, setThumb,
         tableWrap, hTrack, hOn, hThumbW, hThumbX, thumbDown, trackDown, onTableScroll, imgCls, catFiltered, catSearch, catPanelOpen, selectedCats,
         product, content, contentLoading, rich, extraRows, drawerRich, drawerExtra,
@@ -959,8 +957,7 @@
         </div>
         <div class="empty tiny" v-if="catSearch.trim() && !catSearching && !displayList.length">没有匹配的类目</div>
       </div>
-      <label class="cat-mode"><input type="checkbox" v-model="autoLeaves"> 勾选父类目时自动补齐三级（Ozon 只认三级，关闭后二级可能查不到）</label>
-      <div class="side-foot"><span class="tiny">勾选父类目时，会把它下面前 20 个三级类目作为「自动」标签一并提交（虚线灰标），取消父类目会一起移除；自动带入的类目不会显示成勾选状态</span></div>
+            <div class="side-foot"><span class="tiny">勾选父类目会自动带上它前 20 个三级类目（Ozon 只认三级），带上的显示为灰色「自动」标签，可单独移除</span></div>
     </aside>
 
     <main class="main" :key="route">
