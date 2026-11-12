@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>店铺分析 · Ozon 数据选品台</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body data-page="shop">
+
+<header class="topbar">
+  <div class="brand">
+    <div class="brandmark">S</div>
+    <div class="brandtext">
+      <div class="brandname">Ozon 数据选品台</div>
+      <div class="brandsub">Seerfar Open API · 数据口径近 30 天</div>
+    </div>
+  </div>
+  <div class="stats" id="statsBar"><span class="skeleton-text">读取状态…</span></div>
+  <div class="topactions">
+    <button class="iconbtn" id="btnRefresh" title="刷新状态">刷新</button>
+  </div>
+</header>
+<nav class="pagenav">
+  <div class="pagenav-inner">
+    <a class="pnav" href="/">在线选品</a>
+    <a class="pnav" href="/hotwords">市场热词</a>
+    <a class="pnav" href="/mining">关键词挖掘</a>
+    <a class="pnav" href="/backsearch">关键词反查</a>
+    <a class="pnav" href="/product">竞品详情</a>
+    <a class="pnav" href="/category">类目大盘</a>
+    <a class="pnav active" href="/shop">店铺分析</a>
+    <a class="pnav" href="/local-products">本地商品库</a>
+    <a class="pnav" href="/local-keywords">本地关键词库</a>
+    <a class="pnav" href="/logs">调用日志</a>
+  </div>
+</nav>
+<div class="layout no-sidebar">
+  <main class="main">
+
+<section class="panel active" data-panel="shop">
+      <div class="pagehead">
+        <div><h1>店铺分析</h1><p class="muted">看某个店铺近 30 天的商品、销售额、销量与配送结构</p></div>
+      </div>
+      <form class="filtercard" data-tool="shop" autocomplete="off">
+        <div class="fall">
+          <div class="field"><label class="flab">店铺 ID</label><div class="fctl">
+            <input class="innum" style="width:160px" type="number" data-f="id" placeholder="必填，如 7" required></div></div>
+          <div class="field"><label class="flab">价格 (₽)</label><div class="fctl range">
+            <input class="innum" type="number" data-f="price_min" placeholder="最低"><span class="dash">—</span><input class="innum" type="number" data-f="price_max" placeholder="最高"></div></div>
+          <div class="field"><label class="flab">30 天销量</label><div class="fctl range">
+            <input class="innum" type="number" data-f="monthlySales_min" placeholder="最低"><span class="dash">—</span><input class="innum" type="number" data-f="monthlySales_max" placeholder="最高"></div></div>
+          <div class="field"><label class="flab">总评论数</label><div class="fctl range">
+            <input class="innum" type="number" data-f="reviewCount_min" placeholder="最低"><span class="dash">—</span><input class="innum" type="number" data-f="reviewCount_max" placeholder="最高"></div></div>
+          <div class="field"><label class="flab">评分</label><div class="fctl range">
+            <input class="innum" type="number" step="0.1" data-f="reviewRating_min" placeholder="最低"><span class="dash">—</span><input class="innum" type="number" step="0.1" data-f="reviewRating_max" placeholder="最高"></div></div>
+          <div class="field"><label class="flab">配送方式</label><div class="fctl radios">
+            <label><input type="radio" name="r_sf" data-f="fulfillment" value="" checked><span>全部</span></label>
+            <label><input type="radio" name="r_sf" data-f="fulfillment" value="FBO"><span>FBO</span></label>
+            <label><input type="radio" name="r_sf" data-f="fulfillment" value="FBS"><span>FBS</span></label>
+            <label><input type="radio" name="r_sf" data-f="fulfillment" value="RFBS"><span>RFBS</span></label>
+          </div></div>
+          <div class="field"><label class="flab">30 天销售额 (₽)</label><div class="fctl range">
+            <input class="innum" type="number" data-f="monthlyRevenue_min" placeholder="最低"><span class="dash">—</span><input class="innum" type="number" data-f="monthlyRevenue_max" placeholder="最高"></div></div>
+          <div class="field"><label class="flab">销量环比</label><div class="fctl range">
+            <input class="innum" type="number" data-f="monthlySalesRate_min" placeholder="最低"><span class="dash">—</span><input class="innum" type="number" data-f="monthlySalesRate_max" placeholder="最高"><span class="unit">%</span></div></div>
+          <div class="field"><label class="flab">毛利率</label><div class="fctl range">
+            <input class="innum" type="number" data-f="grossMargin_min" placeholder="最低"><span class="dash">—</span><input class="innum" type="number" data-f="grossMargin_max" placeholder="最高"><span class="unit">%</span></div></div>
+          <div class="field"><label class="flab">广告份额 DRR</label><div class="fctl range">
+            <input class="innum" type="number" data-f="drr_min" placeholder="最低"><span class="dash">—</span><input class="innum" type="number" data-f="drr_max" placeholder="最高"><span class="unit">%</span></div></div>
+          <div class="field"><label class="flab">问答数</label><div class="fctl range">
+            <input class="innum" type="number" data-f="questionsAndAnswers_min" placeholder="最低"><span class="dash">—</span><input class="innum" type="number" data-f="questionsAndAnswers_max" placeholder="最高"></div></div>
+          <div class="field"><label class="flab">转化率 <i class="tip">≈加购率</i></label><div class="fctl range">
+            <input class="innum" type="number" data-f="convToCartPdp_min" placeholder="最低"><span class="dash">—</span><input class="innum" type="number" data-f="convToCartPdp_max" placeholder="最高"><span class="unit">%</span></div></div>
+          <div class="field"><label class="flab">退货取消率</label><div class="fctl range">
+            <input class="innum" type="number" data-f="returnCancellationRate_min" placeholder="最低"><span class="dash">—</span><input class="innum" type="number" data-f="returnCancellationRate_max" placeholder="最高"><span class="unit">%</span></div></div>
+          <div class="field"><label class="flab">重量 (kg)</label><div class="fctl range">
+            <input class="innum" type="number" step="0.01" data-f="weight_kg_min" placeholder="最低"><span class="dash">—</span><input class="innum" type="number" step="0.01" data-f="weight_kg_max" placeholder="最高"></div></div>
+          <div class="field"><label class="flab">体积 (L)</label><div class="fctl range">
+            <input class="innum" type="number" step="0.01" data-f="volume_min" placeholder="最低"><span class="dash">—</span><input class="innum" type="number" step="0.01" data-f="volume_max" placeholder="最高"></div></div>
+          <div class="field"><label class="flab">变体数</label><div class="fctl range">
+            <input class="innum" type="number" data-f="variants_min" placeholder="最低"><span class="dash">—</span><input class="innum" type="number" data-f="variants_max" placeholder="最高"></div></div>
+          <div class="field"><label class="flab">上架时间</label><div class="fctl">
+            <select class="insm" data-f="creation_date"><option value="">不限</option><option value="1">近30天</option>
+              <option value="3">近90天</option><option value="6">近180天</option><option value="12">近一年</option>
+              <option value="24">近2年</option></select></div></div>
+          <div class="field"><label class="flab">商品标签</label><div class="fctl radios">
+            <label><input type="radio" name="r_sl" data-f="labels" value="" checked><span>全部</span></label>
+            <label><input type="radio" name="r_sl" data-f="labels" value="0"><span>新品</span></label>
+            <label><input type="radio" name="r_sl" data-f="labels" value="1"><span>正品</span></label>
+            <label><input type="radio" name="r_sl" data-f="labels" value="2"><span>畅销品</span></label>
+          </div></div>
+          <div class="field"><label class="flab">品牌</label><div class="fctl">
+            <input class="ingrow" data-f="brands" placeholder="品牌名，逗号分隔">
+            <select class="inxs" data-f="brand_type"><option value="0">包含</option><option value="1">排除</option><option value="2">无品牌</option></select></div></div>
+          <div class="field"><label class="flab">商品 ID</label><div class="fctl"><input class="infull" data-f="skus" placeholder="最多 10 个，逗号分隔"></div></div>
+          <div class="field"><label class="flab">类目 ID</label><div class="fctl"><input class="infull" data-f="category_ids" placeholder="多个用逗号分隔"></div></div>
+          <div class="field"><label class="flab">关键词</label><div class="fctl"><input class="infull" data-f="keywords" placeholder="商品标题关键词，逗号分隔"></div></div>
+          <div class="field"><label class="flab">标签词</label><div class="fctl"><input class="infull" data-f="tag" placeholder="tag 标签词"></div></div>
+        </div>
+        <div class="applied-bar"><span class="applied-lab">已选条件</span><div class="applied-tags" data-tags><span class="muted">无</span></div></div>
+        <div class="formfoot">
+          <div class="foot-left">
+            <label class="chk"><input type="checkbox" data-f="force"> 强制刷新</label>
+            <label class="chk">每页 <input class="inxs" type="number" data-f="size" value="20" min="1" max="100"></label>
+            <select class="insm" data-f="sort"><option value="revenue">按 30天销售额</option><option value="sales">按 30天销量</option>
+              <option value="price">按 价格</option><option value="reviewCount">按 评论数</option></select>
+            <select class="inxs" data-f="direction"><option value="DESC">降序</option><option value="ASC">升序</option></select>
+          </div>
+          <div class="foot-right"><button type="button" class="btn ghost" data-reset>重置</button>
+            <button type="submit" class="btn primary"><span class="btnlabel">查店铺</span></button></div>
+        </div>
+      </form>
+      <section class="summary" data-summary></section>
+      <section class="resultcard">
+        <div class="resulthead">
+          <div class="resultr"><h3>店铺商品</h3><span class="badge solid" data-count>0</span><span class="muted" data-note></span></div>
+          <div class="resultbar-actions"><div class="viewtoggle" title="切换查看模式"><button type="button" class="vt on" data-viewmode="table">☰ 列表</button><button type="button" class="vt" data-viewmode="card">▦ 卡片</button></div><button class="btn ghost sm" data-export>导出 XLSX</button></div>
+        </div>
+        <div class="statusline" data-meta>填店铺 ID 后点「查店铺」。</div>
+        <div class="tablewrap" data-table><div class="placeholder"><div class="ph-icon">◈</div><div class="ph-title">还没有查询结果</div>
+          <div class="ph-desc">填一个店铺 ID，看它近 30 天的商品表现</div></div></div>
+        <div class="pager" data-pager></div>
+      </section>
+    </section>
+
+  </main>
+</div>
+
+<div id="drawer" class="drawer hidden">
+  <div class="drawer-head"><span id="drawerTitle">商品详情</span><button id="drawerClose">×</button></div>
+  <div id="drawerBody" class="drawer-body"></div>
+</div>
+<div id="toast" class="toast hidden"></div>
+</body>
+<script src="/static/app.js"></script>
+</html>

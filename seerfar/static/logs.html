@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>调用日志 · Ozon 数据选品台</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body data-page="logs">
+
+<header class="topbar">
+  <div class="brand">
+    <div class="brandmark">S</div>
+    <div class="brandtext">
+      <div class="brandname">Ozon 数据选品台</div>
+      <div class="brandsub">Seerfar Open API · 数据口径近 30 天</div>
+    </div>
+  </div>
+  <div class="stats" id="statsBar"><span class="skeleton-text">读取状态…</span></div>
+  <div class="topactions">
+    <button class="iconbtn" id="btnRefresh" title="刷新状态">刷新</button>
+  </div>
+</header>
+<nav class="pagenav">
+  <div class="pagenav-inner">
+    <a class="pnav" href="/">在线选品</a>
+    <a class="pnav" href="/hotwords">市场热词</a>
+    <a class="pnav" href="/mining">关键词挖掘</a>
+    <a class="pnav" href="/backsearch">关键词反查</a>
+    <a class="pnav" href="/product">竞品详情</a>
+    <a class="pnav" href="/category">类目大盘</a>
+    <a class="pnav" href="/shop">店铺分析</a>
+    <a class="pnav" href="/local-products">本地商品库</a>
+    <a class="pnav" href="/local-keywords">本地关键词库</a>
+    <a class="pnav active" href="/logs">调用日志</a>
+  </div>
+</nav>
+<div class="layout no-sidebar">
+  <main class="main">
+
+<section class="panel active" data-panel="logs">
+      <div class="pagehead">
+        <div><h1>调用日志</h1><p class="muted">每次接口调用的耗时、缓存命中与积分消耗</p></div>
+      </div>
+      <form class="filtercard" data-tool="logs" autocomplete="off">
+        <div class="fall">
+          <div class="field"><label class="flab">条数</label><div class="fctl">
+            <input class="innum" type="number" data-f="limit" value="50" min="1" max="500"></div></div>
+        </div>
+        <div class="formfoot">
+          <div class="foot-left"><span class="tiny">用于核对积分消耗与缓存效果</span></div>
+          <div class="foot-right"><button type="submit" class="btn primary"><span class="btnlabel">查看日志</span></button></div>
+        </div>
+      </form>
+      <section class="resultcard">
+        <div class="resulthead">
+          <div class="resultr"><h3>调用记录</h3><span class="badge solid" data-count>0</span><span class="muted" data-note></span></div>
+        </div>
+        <div class="statusline" data-meta>点「查看日志」看最近的接口调用。</div>
+        <div class="tablewrap" data-table><div class="placeholder"><div class="ph-icon">◈</div><div class="ph-title">还没有查询结果</div>
+          <div class="ph-desc">点「查看日志」看最近调用</div></div></div>
+      </section>
+    </section>
+
+  </main>
+</div>
+
+<div id="drawer" class="drawer hidden">
+  <div class="drawer-head"><span id="drawerTitle">商品详情</span><button id="drawerClose">×</button></div>
+  <div id="drawerBody" class="drawer-body"></div>
+</div>
+<div id="toast" class="toast hidden"></div>
+</body>
+<script src="/static/app.js"></script>
+</html>

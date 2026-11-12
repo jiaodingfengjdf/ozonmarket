@@ -1,0 +1,18 @@
+# ---- 凭证（务必不要提交）----
+config.json
+seerfar/config.json
+token.json
+*.token
+.env
+
+# ---- 运行产物 / 缓存（不入库，可重建）----
+__pycache__/
+*.pyc
+*.log
+seerfar/data/*.db
+seerfar/data/*.db-*
+seerfar/data/_*.json
+seerfar/export/
+export/
+out/
+.chrome-profile/

@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>本地关键词库 · Ozon 数据选品台</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body data-page="local_keywords">
+
+<header class="topbar">
+  <div class="brand">
+    <div class="brandmark">S</div>
+    <div class="brandtext">
+      <div class="brandname">Ozon 数据选品台</div>
+      <div class="brandsub">Seerfar Open API · 数据口径近 30 天</div>
+    </div>
+  </div>
+  <div class="stats" id="statsBar"><span class="skeleton-text">读取状态…</span></div>
+  <div class="topactions">
+    <button class="iconbtn" id="btnRefresh" title="刷新状态">刷新</button>
+  </div>
+</header>
+<nav class="pagenav">
+  <div class="pagenav-inner">
+    <a class="pnav" href="/">在线选品</a>
+    <a class="pnav" href="/hotwords">市场热词</a>
+    <a class="pnav" href="/mining">关键词挖掘</a>
+    <a class="pnav" href="/backsearch">关键词反查</a>
+    <a class="pnav" href="/product">竞品详情</a>
+    <a class="pnav" href="/category">类目大盘</a>
+    <a class="pnav" href="/shop">店铺分析</a>
+    <a class="pnav" href="/local-products">本地商品库</a>
+    <a class="pnav active" href="/local-keywords">本地关键词库</a>
+    <a class="pnav" href="/logs">调用日志</a>
+  </div>
+</nav>
+<div class="layout no-sidebar">
+  <main class="main">
+
+<section class="panel active" data-panel="local_keywords">
+      <div class="pagehead">
+        <div><h1>本地关键词库</h1><p class="muted">已落库的热词与长尾词 · 本地查询不消耗积分</p></div>
+      </div>
+      <form class="filtercard" data-tool="local_keywords" autocomplete="off">
+        <div class="fall">
+          <div class="field"><label class="flab">条数</label><div class="fctl">
+            <input class="innum" type="number" data-f="limit" value="200" min="1" max="2000"></div></div>
+          <div class="field"><label class="flab">排序</label><div class="fctl">
+            <select class="insm" data-f="sort"><option value="search_volume">月搜索量</option><option value="growth30">30天增长</option>
+              <option value="competing_products">竞品数</option><option value="sellers">卖家数</option>
+              <option value="market_space">市场空间</option><option value="updated_at">最近更新</option></select>
+            <select class="inxs" data-f="direction"><option value="DESC">降序</option><option value="ASC">升序</option></select></div></div>
+        </div>
+        <div class="formfoot">
+          <div class="foot-left"><span class="tiny">本地 SQLite 查询，不消耗积分</span></div>
+          <div class="foot-right"><button type="submit" class="btn primary"><span class="btnlabel">查询本地库</span></button></div>
+        </div>
+      </form>
+      <section class="resultcard">
+        <div class="resulthead">
+          <div class="resultr"><h3>落库关键词</h3><span class="badge solid" data-count>0</span><span class="muted" data-note></span></div>
+          <div class="resultbar-actions"><button class="btn ghost sm" data-export>导出 XLSX</button></div>
+        </div>
+        <div class="statusline" data-meta>本地 SQLite 查询，<b>不消耗积分</b>。</div>
+        <div class="tablewrap" data-table><div class="placeholder"><div class="ph-icon">◈</div><div class="ph-title">还没有查询结果</div>
+          <div class="ph-desc">点「查询本地库」查看已落库的关键词</div></div></div>
+      </section>
+    </section>
+
+  </main>
+</div>
+
+<div id="drawer" class="drawer hidden">
+  <div class="drawer-head"><span id="drawerTitle">商品详情</span><button id="drawerClose">×</button></div>
+  <div id="drawerBody" class="drawer-body"></div>
+</div>
+<div id="toast" class="toast hidden"></div>
+</body>
+<script src="/static/app.js"></script>
+</html>

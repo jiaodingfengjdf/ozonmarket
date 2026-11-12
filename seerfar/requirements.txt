@@ -1,0 +1,2 @@
+# 其余全部为 Python 标准库（sqlite3 / urllib / http.server / argparse）
+openpyxl>=3.1.0
