@@ -462,6 +462,19 @@
         return { texts, imgs };
       }
       const rich = computed(() => richParts(content.value && content.value.rich));
+      const drawerRich = computed(() => richParts(drawerContent.value && drawerContent.value.rich));
+      const EXTRA_LABEL = {
+        seller: '卖家', seller_company: '公司', seller_psrn: '工商注册号', seller_rating: '店铺评分',
+        seller_reviews: '店铺评价/订单', seller_address: '卖家地址', honest_sign: '诚信标志',
+        stock: '库存', questions: '提问数', country: '产地', category: '类目路径',
+        offer_code: '货号', discount: '折扣%', image_count: '图片数'
+      };
+      const drawerExtra = computed(() => {
+        const ex = (drawerContent.value || {}).extra || {};
+        return Object.keys(EXTRA_LABEL)
+          .filter(k => ex[k] !== null && ex[k] !== undefined && ex[k] !== '')
+          .map(k => [EXTRA_LABEL[k], ex[k]]);
+      });
       const extraRows = computed(() => {
         const ex = (content.value || {}).extra || {};
         return [['卖家', ex.seller], ['公司', ex.seller_company], ['工商注册号', ex.seller_psrn],
@@ -651,7 +664,7 @@
       return {
         nav, page, cfg, route, status, loading, rows, note, pageNo, pageMeta, viewMode,
         formEl, quickDays, activePreset, cats, catFiltered, catSearch, catPanelOpen, selectedCats,
-        product, content, contentLoading, rich, extraRows,
+        product, content, contentLoading, rich, extraRows, drawerRich, drawerExtra,
         drawerOpen, drawerSku, drawerContent, drawerLoading,
         toastMsg, toastBad,
         fmt, money, esc, cell, rateClass, run, resetForm, exportXlsx, go, openDrawer, closeDrawer,
@@ -1073,11 +1086,14 @@
           <span class="wchips"><a class="wchip" href="javascript:;" v-for="v in a.values.slice(0,40)" :key="v.sku" @click="openDrawer(v.sku)">{{ v.value }}</a></span>
         </div>
         <h4>卖家与库存</h4>
-        <div class="attrgrid"><template v-for="k in ['seller','seller_company','seller_psrn','stock','questions','country']" :key="k">
-          <template v-if="(drawerContent.extra||{})[k] != null">
-            <div class="akey">{{ k }}</div><div class="aval">{{ (drawerContent.extra||{})[k] }}</div></template></template></div>
-        <h4>富文本</h4>
-        <div class="empty">见竞品详情页</div>
+        <div class="attrgrid"><template v-for="row in drawerExtra" :key="row[0]">
+          <div class="akey">{{ row[0] }}</div><div class="aval">{{ row[1] }}</div></template></div>
+        <h4>富文本<template v-if="drawerRich.texts.length || drawerRich.imgs.length">（{{ drawerRich.texts.length }} 段文字<template v-if="drawerRich.imgs.length"> · {{ drawerRich.imgs.length }} 张图</template>）</template></h4>
+        <div class="richdesc" v-if="drawerRich.texts.length || drawerRich.imgs.length">
+          <p v-for="(tx, i) in drawerRich.texts" :key="'rt'+i">{{ tx }}</p>
+          <div class="richimgs"><a v-for="u in drawerRich.imgs" :key="u" :href="u" target="_blank" rel="noopener"><img :src="u" loading="lazy"></a></div>
+        </div>
+        <div class="empty" v-else>该商品没有富文本块（只有上方纯文本描述）</div>
       </template>
     </div>
     <div class="drawer-foot">抽屉只展示 0 积分内容；Seerfar 指标请到「竞品详情」查询（约 20 积分/次）。</div>
