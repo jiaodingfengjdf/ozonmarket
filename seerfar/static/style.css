@@ -4,6 +4,7 @@
    依赖原有 DOM 结构，类名保持不变
    ========================================================================== */
 :root{
+  color-scheme: light;
   --bg:#f5f5f7;
   --bg-glow-1:rgba(0,113,227,.10);
   --bg-glow-2:rgba(94,92,230,.08);
@@ -585,34 +586,7 @@ a.wchip:hover{background:var(--accent-soft);color:var(--accent);transform:transl
    ========================================================================== */
 
 /* ---------- 深色模式 ---------- */
-@media (prefers-color-scheme: dark){
-  :root{
-    --bg:#0b0b0d; --card:#141416; --card-2:#101012;
-    --ink:#f5f5f7; --ink-2:#c7c7cc; --muted:#8e8e93;
-    --line:rgba(255,255,255,.10); --line-2:rgba(255,255,255,.06);
-    --accent:#0a84ff; --accent-2:#409cff; --accent-soft:rgba(10,132,255,.18);
-    --shadow-1:0 1px 2px rgba(0,0,0,.6),0 10px 30px -16px rgba(0,0,0,.9);
-    --shadow-2:0 2px 8px rgba(0,0,0,.55),0 28px 60px -28px rgba(0,0,0,.95);
-  }
-  body{background:
-    radial-gradient(1100px 520px at 12% -8%,rgba(10,132,255,.16),transparent 62%),
-    radial-gradient(900px 480px at 92% -12%,rgba(94,92,230,.14),transparent 58%),var(--bg)}
-  .topbar,.pagenav{background:rgba(18,18,20,.72)}
-  .sidebar{background:rgba(20,20,22,.78)}
-  .filtercard,.resultcard,.card,.scard,.pcard,.contentblock{background:var(--card)}
-  input,select,.side-search input{background:rgba(255,255,255,.06);color:var(--ink)}
-  input:focus,select:focus{background:rgba(255,255,255,.10)}
-  .tablewrap thead th{background:rgba(22,22,24,.9)}
-  .tablewrap tbody tr:hover{background:rgba(255,255,255,.045)}
-  .descbox,.richdesc{background:rgba(255,255,255,.04)}
-  .badge{background:rgba(255,255,255,.08)}
-  .btn{background:rgba(255,255,255,.08);color:var(--ink)}
-  .btn.ghost{background:rgba(255,255,255,.05)}
-  .iconbtn,.quickdates button,.vt.on{background:rgba(255,255,255,.08);color:var(--ink)}
-  .drawer{background:rgba(20,20,22,.92)}
-  .drawer-head{background:rgba(20,20,22,.85)}
-  .toast{background:rgba(58,58,60,.94)}
-}
+
 
 /* ---------- 页面切换（route key 变化时重播） ---------- */
 @keyframes pageIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
@@ -655,9 +629,7 @@ a.wchip:hover{background:var(--accent-soft);color:var(--accent);transform:transl
   background:linear-gradient(180deg,rgba(255,255,255,.55),rgba(255,255,255,0) 42%);
   opacity:.6;
 }
-@media (prefers-color-scheme: dark){
-  .filtercard::before,.resultcard::before{background:linear-gradient(180deg,rgba(255,255,255,.07),transparent 45%)}
-}
+
 .card:hover,.scard:hover{border-color:rgba(10,132,255,.28)}
 .preset{will-change:transform}
 
@@ -672,15 +644,13 @@ a.wchip:hover{background:var(--accent-soft);color:var(--accent);transform:transl
 }
 .tablewrap tbody tr:hover td{background:rgba(10,132,255,.045)}
 .tablewrap tbody td{transition:background .2s var(--ease)}
-@media (prefers-color-scheme: dark){ .tablewrap tbody tr:hover td{background:rgba(10,132,255,.12)} }
+
 
 /* ---------- 骨架屏 ---------- */
 .skel{height:12px;border-radius:6px;
   background:linear-gradient(90deg,rgba(0,0,0,.06) 25%,rgba(0,0,0,.11) 37%,rgba(0,0,0,.06) 63%);
   background-size:400% 100%;animation:shimmer 1.3s ease infinite}
-@media (prefers-color-scheme: dark){
-  .skel{background:linear-gradient(90deg,rgba(255,255,255,.07) 25%,rgba(255,255,255,.14) 37%,rgba(255,255,255,.07) 63%);background-size:400% 100%}
-}
+
 .skelrow td{padding:12px 10px}
 .skelrow .skel{width:70%}
 .skelrow .skel.w40{width:40%}
@@ -724,9 +694,7 @@ a.wchip:active{transform:scale(.97)}
 ::-webkit-scrollbar{width:10px;height:10px}
 ::-webkit-scrollbar-thumb{background:rgba(0,0,0,.18);border-radius:10px;border:3px solid transparent;background-clip:content-box}
 ::-webkit-scrollbar-thumb:hover{background:rgba(0,0,0,.3);background-clip:content-box}
-@media (prefers-color-scheme: dark){
-  ::-webkit-scrollbar-thumb{background:rgba(255,255,255,.18);background-clip:content-box}
-}
+
 /* ==========================================================================
    v3.1 · 图片模糊渐进 / 数字滚动 / 详情页 hero 视差
    ========================================================================== */
@@ -743,9 +711,7 @@ a.wchip:active{transform:scale(.97)}
   will-change:filter,transform,opacity;
 }
 .phimg.loaded{filter:none;transform:none;opacity:1}
-@media (prefers-color-scheme:dark){
-  .phimg{background:linear-gradient(110deg,#1b1b1e,#232327)}
-}
+
 /* 表格缩略图小一点，模糊半径收一点 */
 .thumb.phimg{filter:blur(8px) scale(1.04)}
 .thumb.phimg.loaded{filter:none;transform:none}
@@ -832,10 +798,7 @@ td.num-tween{animation:numFlash .9s var(--ease) both}
   font-size:10.5px;color:var(--muted);white-space:nowrap;opacity:0;transition:opacity .2s
 }
 .hscroll:hover .hlabel{opacity:1}
-@media (prefers-color-scheme:dark){
-  .hscroll{background:rgba(28,28,30,.82)}
-  .hscroll-track{background:rgba(255,255,255,.10)}
-}
+
 @media (max-width:640px){ .hscroll{width:92vw;bottom:10px} }
 /* ==========================================================================
    筛选区收紧 + 底部常驻工具条（翻页 + 横向滚动）
@@ -880,10 +843,7 @@ input[type=text],input[type=number],input[type=date],input:not([type]),select{he
   background:linear-gradient(90deg,var(--accent-2),var(--accent));
   box-shadow:0 2px 8px -2px rgba(0,113,227,.75)}
 .bottombar .bb-thumb:active{cursor:grabbing}
-@media (prefers-color-scheme:dark){
-  .bottombar{background:rgba(28,28,30,.85)}
-  .bottombar .bb-track{background:rgba(255,255,255,.10)}
-}
+
 @media (max-width:820px){ .bottombar .bb-track{width:34vw} }
 @media (max-width:640px){
   .bottombar{width:calc(100vw - 24px);justify-content:space-between;bottom:10px}
