@@ -499,10 +499,30 @@ def build_content(rec, main_payload, sku="", source="ozon-composer-http", page2_
         attributes.append(a)
         seen_names.add(a["name"])
 
-    # 主题标签（tagList）作为一条属性展示
+    # 主题标签 = 前台 #话题标签（webHashtags.badges[].text），与 Ozon 页面上的 #tofu 那一排一致
+    def _hashtags(states):
+        out = []
+        for key in ("webHashtags", "tapTags"):
+            box = _as_obj(states.get(key))
+            for b in box.get("badges") or []:
+                tt = (b.get("text") or "").strip() if isinstance(b, dict) else ""
+                if tt and tt not in out:
+                    out.append(tt)
+            for it in box.get("items") or []:
+                tt = (it.get("text") or "").strip() if isinstance(it, dict) else ""
+                if tt and tt not in out:
+                    out.append(tt)
+        return out
+
+    hashtags = _hashtags(p2_states) or _hashtags(st)
+    if hashtags and "主题标签" not in seen_names:
+        attributes.append({"name": "主题标签", "values": hashtags, "key": "Hashtags"})
+        seen_names.add("主题标签")
+
+    # tagList（类目/专题词）单独一条，避免和 #标签 混淆
     topic = _topic_tags(p2_states) or _topic_tags(st)
-    if topic and "主题标签" not in seen_names:
-        attributes.append({"name": "主题标签", "values": [x["name"] for x in topic],
+    if topic and "关联类目" not in seen_names:
+        attributes.append({"name": "关联类目", "values": [x["name"] for x in topic],
                            "key": "TopicTags"})
 
     aspects = []

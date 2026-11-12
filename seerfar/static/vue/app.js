@@ -1119,7 +1119,7 @@
               <div class="descbox">{{ content.description || '该商品没有文本描述' }}</div>
               <h4>产品属性（{{ (content.attributes||[]).length }}）</h4>
               <div class="attrgrid"><template v-for="a in (content.attributes||[])" :key="a.name">
-                <div class="akey">{{ a.name }}</div><div class="aval">{{ (a.values||[]).join(' / ') }}</div></template></div>
+                <div class="akey">{{ a.name }}</div><div class="aval"><template v-if="a.name === '主题标签'"><span class="tagchip" v-for="v in a.values" :key="v">{{ v }}</span></template><template v-else>{{ (a.values||[]).join(' / ') }}</template></div></template></div>
               <h4>变体维度（{{ (content.aspects||[]).length }}）</h4>
               <div class="aspectrow" v-for="a in (content.aspects||[])" :key="a.name">
                 <span class="aspectname">{{ a.name }}</span>
@@ -1316,7 +1316,7 @@
         <div class="descbox">{{ drawerContent.description || '无' }}</div>
         <h4>产品属性（{{ (drawerContent.attributes||[]).length }}）</h4>
         <div class="attrgrid"><template v-for="a in (drawerContent.attributes||[])" :key="a.name">
-          <div class="akey">{{ a.name }}</div><div class="aval">{{ (a.values||[]).join(' / ') }}</div></template></div>
+          <div class="akey">{{ a.name }}</div><div class="aval"><template v-if="a.name === '主题标签'"><span class="tagchip" v-for="v in a.values" :key="v">{{ v }}</span></template><template v-else>{{ (a.values||[]).join(' / ') }}</template></div></template></div>
         <h4>变体维度（{{ (drawerContent.aspects||[]).length }}）</h4>
         <div class="aspectrow" v-for="a in (drawerContent.aspects||[])" :key="a.name">
           <span class="aspectname">{{ a.name }}</span>

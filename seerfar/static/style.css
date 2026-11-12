@@ -873,3 +873,7 @@ input[type=text],input[type=number],input[type=date],input:not([type]),select{he
 .cnode .node-name .node-path{font-style:normal;font-size:10.5px;color:var(--muted);
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:250px}
 .cnode .node-name.search.clickable:hover b{color:var(--accent)}
+/* 主题标签 chips */
+.tagchip{display:inline-block;margin:2px 6px 2px 0;padding:2px 8px;border-radius:9px;
+  background:rgba(0,113,227,.09);color:var(--accent);font-size:11.5px;line-height:1.6;white-space:nowrap}
+.aval{display:flex;flex-wrap:wrap;gap:2px 0;align-items:center}
