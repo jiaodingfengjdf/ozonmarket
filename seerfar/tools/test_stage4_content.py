@@ -157,6 +157,10 @@ def t_wiring():
     check("竞品页有内容区块", 'data-act="content"' in prod and "data-content-box" in prod)
     check("app.js 有 loadContent", "async function loadContent" in js and "renderContent" in js)
     check("CLI 有 content 命令", 'sub.add_parser("content"' in cli)
+    check("content 支持 cached_only（抽屉不偷跑浏览器）", "cached_only" in srv and "need_fetch" in srv)
+    check("抽屉详情支持 trend=0（省一半积分）", 'one("trend", "1") != "0"' in srv)
+    check("抽屉会加载商品内容", "loadDrawerContent" in js and "data-drawer-fetch" in js)
+    check("抽屉详情不再连带查趋势", "&trend=0" in js)
     try:
         chrome = C.find_chrome({})
         check("能定位到本机浏览器", bool(chrome), chrome)

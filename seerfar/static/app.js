@@ -802,7 +802,7 @@ async function openDrawer(sku) {
   $('#drawer').classList.remove('hidden'); $('#drawerTitle').textContent = '商品 ' + sku;
   $('#drawerBody').innerHTML = '<div class="empty">加载中…</div>';
   try {
-    const j = await api('/api/product?sku=' + encodeURIComponent(sku));
+    const j = await api('/api/product?sku=' + encodeURIComponent(sku) + '&trend=0');
     const p = j.data.product || {}, s = j.data.summary || {}, t = j.data.trend || [];
     $('#drawerBody').innerHTML = `
       <div class="phead">${p.image_url ? `<img src="${esc(p.image_url)}" class="pimg">` : ''}
@@ -827,8 +827,10 @@ async function openDrawer(sku) {
         <div>店铺类型</div><div>${esc(p.seller_type_text || '—')}</div>
         <div>配送</div><div>${esc(p.fulfillment_text || '—')}</div></div>
       <h4 style="margin:16px 0 8px;font-size:12.5px">日销量趋势（${t.length} 天）</h4>
-      ${t.length ? sparkline(t, 'sales', '#2563eb', '日销量') : '<div class="empty">无趋势数据</div>'}`;
+      ${t.length ? sparkline(t, 'sales', '#2563eb', '日销量') : '<div class="empty">未查询趋势（抽屉默认省积分，需要看趋势请在「竞品详情」页查）</div>'}
+      <div data-drawer-content class="drawer-content"><div class="empty">正在读取商品内容（属性/描述/图片）…</div></div>`;
     refreshStatus();
+    loadDrawerContent(sku);
   } catch (e) { $('#drawerBody').innerHTML = `<div class="empty" style="color:var(--bad)">${esc(e.message)}</div>`; }
 }
 $('#drawerClose').addEventListener('click', () => $('#drawer').classList.add('hidden'));
@@ -1288,6 +1290,42 @@ async function loadContent(btn) {
     toast(e.message, true);
   } finally { busy(btn, false); }
 }
+
+/* ---------- 抽屉里的商品内容（缓存优先，0 积分） ---------- */
+async function loadDrawerContent(sku) {
+  const box = $('[data-drawer-content]');
+  if (!box) return;
+  try {
+    const j = await api('/api/content?sku=' + encodeURIComponent(sku) + '&cached_only=1');
+    const d = j.data || {};
+    if (d.need_fetch) {
+      box.innerHTML = `<div class="empty">该商品内容还没抓过（属性 / 描述 / 变体维度 / 图片）
+        <div style="margin-top:8px"><button class="btn primary sm" data-drawer-fetch="${esc(sku)}">抓取内容（0 积分，约 5~15 秒）</button></div>
+        <div class="tiny" style="margin-top:6px">走 Ozon 前台（composer），用本机浏览器渲染；成功后缓存 72 小时，下次秒出。</div></div>`;
+      return;
+    }
+    box.innerHTML = '';
+    renderContent(box, d);
+  } catch (e) {
+    box.innerHTML = `<div class="empty" style="color:var(--bad)">商品内容读取失败：${esc(e.message)}</div>`;
+  }
+}
+
+document.addEventListener('click', async e => {
+  const b = e.target.closest('[data-drawer-fetch]');
+  if (!b) return;
+  const sku = b.dataset.drawerFetch;
+  const box = $('[data-drawer-content]');
+  busy(b, true, '抓取中');
+  if (box) box.innerHTML = '<div class="empty">正在用本机浏览器打开 Ozon 前台抓取（约 5~15 秒）…</div>';
+  try {
+    const j = await api('/api/content?sku=' + encodeURIComponent(sku));
+    if (box) { box.innerHTML = ''; renderContent(box, j.data || {}); }
+    toast('商品内容已抓取并缓存');
+  } catch (err) {
+    if (box) box.innerHTML = `<div class="empty" style="color:var(--bad)">抓取失败：${esc(err.message)}</div>`;
+  } finally { busy(b, false); }
+});
 
 /* ---------- 启动（多页面：只初始化当前页） ---------- */
 

@@ -480,3 +480,13 @@ td .favbtn{display:inline-block}
 .thumbs{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 12px}
 .thumbs img{width:86px;height:86px;object-fit:cover;border-radius:8px;border:1px solid #e6edf8}
 pre.json{background:#0f1b2e;color:#cfe1ff;border-radius:10px;padding:12px;font-size:11.6px;max-height:320px;overflow:auto}
+/* ===== 抽屉里的商品内容 ===== */
+.drawer-content{margin-top:16px;border-top:1px solid #eef3fb;padding-top:12px}
+.drawer-content h4{margin:14px 0 6px;font-size:12.5px;color:#33456b}
+.drawer .attrgrid{grid-template-columns:112px 1fr;gap:4px 10px}
+.drawer .attrgrid .akey{font-size:11.8px}
+.drawer .attrgrid .aval{font-size:12.2px}
+.drawer .descbox{max-height:340px;font-size:12.4px}
+.drawer .thumbs img{width:66px;height:66px}
+.drawer .aspectrow{flex-direction:column;gap:4px}
+.drawer .aspectname{min-width:0}

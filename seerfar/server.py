@@ -184,6 +184,7 @@ class Handler(BaseHTTPRequestHandler):
                                 "daily": STORE.daily_usage()})
             if p == "/api/product":
                 return self.ok(SELECTOR.product(one("sku", ""), one("date_range", "past_30_days"),
+                                                with_trend=one("trend", "1") != "0",
                                                 with_similar=one("similar") == "1"))
             if p == "/api/variations":
                 return self.ok(SELECTOR.variations(one("sku", ""),
@@ -209,7 +210,8 @@ class Handler(BaseHTTPRequestHandler):
                                              int(one("size", 20) or 20))
                 return self.ok(r, cached=r.get("cached"), cost=r.get("cost"))
             if p == "/api/content":
-                return self.content(one("sku", ""), one("refresh") == "1")
+                return self.content(one("sku", ""), one("refresh") == "1",
+                                  one("cached_only") == "1")
             if p == "/api/similar":
                 r = SELECTOR.similar(one("sku", ""))
                 return self.ok(r, cached=r.get("cached"), cost=r.get("cost"))
@@ -319,7 +321,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.fail(e, 500, type(e).__name__)
 
     # ---------- 具体处理 ----------
-    def content(self, sku, refresh=False):
+    def content(self, sku, refresh=False, cached_only=False):
         """Ozon 前台商品内容（属性/描述/变体维度/图片/标签）。0 积分，走本机浏览器。"""
         sku = str(sku or "").strip()
         if not sku.isdigit():
@@ -330,6 +332,9 @@ class Handler(BaseHTTPRequestHandler):
             cached = STORE.content_get(sku, ttl)
             if cached:
                 return self.ok(cached, cached=True)
+        if cached_only:
+            # 抽屉首次打开只读缓存：没有就让前端显示「一键抓取」，不要偷偷起浏览器
+            return self.ok({"sku": sku, "cached": False, "need_fetch": True})
         if not cfg.get("enabled", True):
             return self.fail("内容抓取已在 config.json 的 content.enabled 关闭", 400, "ContentDisabled")
         data = CONTENT.fetch(sku, cfg)
