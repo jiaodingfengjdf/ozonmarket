@@ -471,6 +471,27 @@
         walk(catFiltered.value, 0);
         return out;
       });
+      /* 搜索：走后端全库检索（10k 类目），而不是只过滤已加载的一级节点 */
+      const catHits = ref([]), catSearching = ref(false);
+      let catTimer = null;
+      watch(catSearch, (v) => {
+        const q = (v || '').trim();
+        if (catTimer) clearTimeout(catTimer);
+        if (!q) { catHits.value = []; catSearching.value = false; return; }
+        catSearching.value = true;
+        catTimer = setTimeout(async () => {
+          try {
+            const j = await api('/api/categories?q=' + encodeURIComponent(q));
+            catHits.value = (j.data || []).map(n => ({
+              id: n.id, name: n.cn || n.id, path: n.cn_path || '', level: n.level,
+              leaf: !!n.leaf, named: n.named !== undefined ? n.named : !!(n.cn && n.cn !== n.id),
+              kids: 0, open: false, children: null, _depth: 0
+            }));
+          } catch (e) { catHits.value = []; }
+          finally { catSearching.value = false; }
+        }, 260);
+      });
+      const displayList = computed(() => (catSearch.value.trim() ? catHits.value : flatCat.value));
       const catFiltered = computed(() => {
         const q = catSearch.value.trim().toLowerCase();
         return q ? cats.value.filter(n => n.name.toLowerCase().includes(q) || String(n.id).includes(q)) : cats.value;
@@ -501,6 +522,7 @@
           const saved = JSON.parse(sessionStorage.getItem('sf_cats_vue') || '[]');
           if (Array.isArray(saved)) selectedCats.value = saved;
         } catch (e) { }
+        try { const cq = new URLSearchParams(location.search).get('catq'); if (cq) catSearch.value = cq; } catch (e) { }
         loadCats(1).catch(() => { });
         loadFavorites();
         nextTick(wireQuickdates);
@@ -828,7 +850,7 @@
       }
       return {
         nav, page, cfg, route, status, loading, rows, note, pageNo, pageMeta, viewMode,
-        formEl, quickDays, activePreset, cats, flatCat, selectedIds,
+        formEl, quickDays, activePreset, cats, flatCat, selectedIds, displayList, catHits, catSearching,
         thumbSize, setThumb,
         tableWrap, hTrack, hOn, hThumbW, hThumbX, thumbDown, trackDown, onTableScroll, imgCls, catFiltered, catSearch, catPanelOpen, selectedCats,
         product, content, contentLoading, rich, extraRows, drawerRich, drawerExtra,
@@ -891,7 +913,7 @@
         </div>
       </div>
       <div class="tree">
-        <div class="cnode" v-for="n in flatCat" :key="n.id"
+        <div class="cnode" v-for="n in displayList" :key="n.id"
              :class="{selected: selectedIds.has(n.id)}"
              :style="{ paddingLeft: (6 + (n._depth || 0) * 14) + 'px' }">
           <span class="arrow" @click.stop="toggleCatNode(n)">{{ n.kids ? (n.open ? '▾' : '▸') : '·' }}</span>
@@ -900,6 +922,7 @@
                   @click.stop="n.kids ? toggleCatNode(n) : toggleCat(n)">{{ n.name }}</span>
           <span class="node-id">{{ n.kids || '' }}</span>
         </div>
+        <div class="empty tiny" v-if="catSearch.trim() && !catSearching && !displayList.length">没有匹配的类目</div>
       </div>
       <div class="side-foot"><span class="tiny">勾选父类目会自动带入前 20 个三级类目（上限 20 个）</span></div>
     </aside>
