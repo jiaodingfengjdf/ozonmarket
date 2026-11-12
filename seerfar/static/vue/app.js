@@ -500,20 +500,24 @@
       });
       /* 搜索：走后端全库检索（10k 类目），而不是只过滤已加载的一级节点 */
       /* 卡片视图展示的商品明细字段（与表格列同一套 key） */
-      /* 卡片只展示售卖/流量相关字段（按运营给的列顺序） */
+      /* 卡片字段：key, 名称, 格式, 色系（primary/auto/green/amber/red/teal/violet/slate/muted） */
       const CARD_FIELDS = [
-        ['discount', '平均折扣', 'pct'],
-        ['sales', '月销量', 'num'], ['sales_rate', '销量环比', 'pct'],
-        ['revenue', '月销售额 ₽', 'money'], ['revenue_rate', '销售额增长', 'pct'],
-        ['gross_margin', '毛利率', 'pct'],
-        ['review_count', '评论数', 'num'], ['review_rating', '评分', 'num'], ['qa', '问答数', 'num'],
-        ['return_cancellation_rate', '退货取消率', 'pct'],
-        ['views', '展示总量', 'num'], ['session_count_search', '曝光量', 'num'],
-        ['session_count', '产品卡浏览', 'num'],
-        ['conv_to_cart_search', '搜索加购率', 'pct'], ['conv_to_cart_pdp', '购物车转化率', 'pct'],
-        ['conv_view_to_order', '展示转化', 'pct'], ['order_conversion_rate', '订单转化', 'pct'],
-        ['drr', '广告份额', 'pct'], ['promo_revenue_share', '促销占比', 'pct'],
-        ['up_time_date', '上架时间', 'text']
+        ['discount', '平均折扣', 'pct', 'muted'],
+        ['sales', '月销量', 'num', 'primary'], ['sales_rate', '销量环比', 'pct', 'auto'],
+        ['revenue', '月销售额 ₽', 'money', 'primary'], ['revenue_rate', '销售额增长', 'pct', 'auto'],
+        ['gross_margin', '毛利率', 'pct', 'green'],
+        ['review_count', '评论数', 'num', 'amber'], ['review_rating', '评分', 'num', 'amber'],
+        ['qa', '问答数', 'num', 'amber'],
+        ['return_cancellation_rate', '退货取消率', 'pct', 'red'],
+        ['views', '展示总量', 'num', 'teal'], ['session_count_search', '曝光量', 'num', 'teal'],
+        ['session_count', '产品卡浏览', 'num', 'teal'],
+        ['conv_to_cart_search', '搜索加购率', 'pct', 'violet'],
+        ['conv_to_cart_pdp', '购物车转化率', 'pct', 'violet'],
+        ['conv_view_to_order', '展示转化', 'pct', 'violet'],
+        ['order_conversion_rate', '订单转化', 'pct', 'violet'],
+        ['drr', '广告份额', 'pct', 'slate'],
+        ['promo_revenue_share', '促销占比', 'pct', 'slate'],
+        ['up_time_date', '上架时间', 'text', 'muted']
       ];
       const catHits = ref([]), catSearching = ref(false);
       const autoIds = computed(() => new Set(selectedCats.value.filter(c => c.auto).map(c => c.id)));
@@ -1074,7 +1078,7 @@
                 <template v-for="f in CARD_FIELDS" :key="f[0]">
                   <div class="c-kv" v-if="r[f[0]] !== null && r[f[0]] !== undefined && r[f[0]] !== ''">
                     <span class="c-k">{{ f[1] }}</span>
-                    <span class="c-v" :class="[{num: f[2] !== 'text', txt: f[2] === 'text'}, rateClass(r, f[0]), {hl: f[0] === 'sales' || f[0] === 'revenue'}]">
+                    <span class="c-v" :class="[{num: f[2] !== 'text', txt: f[2] === 'text'}, rateClass(r, f[0]), 'tone-' + (f[3] || 'muted'), {hl: f[3] === 'primary'}]">
                       <template v-if="f[2] === 'money'">{{ money(r[f[0]]) }}</template>
                       <template v-else-if="f[2] === 'pct'">{{ fmt(r[f[0]]) }}%</template>
                       <template v-else-if="f[2] === 'num'">{{ fmt(r[f[0]]) }}</template>

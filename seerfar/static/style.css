@@ -912,3 +912,16 @@ input[type=text],input[type=number],input[type=date],input:not([type]),select{he
 .c-title{font-size:12.6px;font-weight:600}
 .c-foot{font-size:11px;color:var(--muted)}
 .c-foot .score{font-size:14px;font-weight:800;color:var(--accent)}
+/* 卡片数值色系 */
+.c-v.tone-primary{color:var(--accent);font-size:15px;font-weight:800}
+.c-v.tone-green{color:#0a8f4d}
+.c-v.tone-amber{color:#b26a00}
+.c-v.tone-red{color:#cf2f2f}
+.c-v.tone-teal{color:#0b7c8a}
+.c-v.tone-violet{color:#6b47cc}
+.c-v.tone-slate{color:#4a5a72}
+.c-v.tone-muted{color:var(--ink-2);font-weight:600}
+/* 环比/增长优先使用红绿（rateClass 会覆盖 tone-auto） */
+.c-v.tone-auto{color:var(--ink-2)}
+.c-v.delta-up{color:#0a8f4d !important}
+.c-v.delta-down{color:#cf2f2f !important}
