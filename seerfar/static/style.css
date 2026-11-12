@@ -867,3 +867,9 @@ input[type=text],input[type=number],input[type=date],input:not([type]),select{he
 .auto-tag{font-size:9px;color:var(--muted);border:1px dashed var(--line);border-radius:6px;padding:0 4px;margin-left:4px;flex:none}
 .cat-mode{display:flex;align-items:flex-start;gap:6px;font-size:11px;color:var(--ink-2);margin:8px 2px 4px;line-height:1.4;cursor:pointer}
 .cat-mode input{margin-top:2px}
+/* 搜索结果：两行显示（名称 + 父级路径） */
+.cnode .node-name.search{display:flex;flex-direction:column;gap:1px;line-height:1.3;padding:3px 0;font-weight:400}
+.cnode .node-name.search b{font-weight:600;font-size:12.5px;color:var(--ink)}
+.cnode .node-name .node-path{font-style:normal;font-size:10.5px;color:var(--muted);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:250px}
+.cnode .node-name.search.clickable:hover b{color:var(--accent)}

@@ -479,6 +479,12 @@
       function saveCats() { try { sessionStorage.setItem('sf_cats_vue', JSON.stringify(selectedCats.value)); } catch (e) { } }
 
       const selectedIds = computed(() => new Set(selectedCats.value.filter(c => !c.auto).map(c => c.id)));
+      /* 搜索结果展示父级路径（去掉末尾自身名，避免重复） */
+      function parentPath(p) {
+        const parts = String(p || '').split(' > ').filter(Boolean);
+        if (parts.length <= 1) return '';
+        return parts.slice(0, -1).join('  ›  ');
+      }
       /* 可见节点展平：深度优先、保序、带 depth 用于缩进 */
       const flatCat = computed(() => {
         const out = [];
@@ -874,7 +880,7 @@
       }
       return {
         nav, page, cfg, route, status, loading, rows, note, pageNo, pageMeta, viewMode,
-        formEl, quickDays, activePreset, cats, flatCat, selectedIds, displayList, catHits, catSearching, autoLeaves, autoIds,
+        formEl, quickDays, activePreset, cats, flatCat, selectedIds, displayList, catHits, catSearching, autoLeaves, autoIds, parentPath,
         thumbSize, setThumb,
         tableWrap, hTrack, hOn, hThumbW, hThumbX, thumbDown, trackDown, onTableScroll, imgCls, catFiltered, catSearch, catPanelOpen, selectedCats,
         product, content, contentLoading, rich, extraRows, drawerRich, drawerExtra,
@@ -942,8 +948,12 @@
              :style="{ paddingLeft: (6 + (n._depth || 0) * 14) + 'px' }">
           <span class="arrow" @click.stop="toggleCatNode(n)">{{ n.kids ? (n.open ? '▾' : '▸') : '·' }}</span>
           <input type="checkbox" class="catck" :checked="selectedIds.has(n.id)" @change="toggleCat(n)">
-          <span class="node-name" :class="{unnamed: !n.named, clickable: n.kids}" :title="n.path || n.id"
-                  @click.stop="n.kids ? toggleCatNode(n) : toggleCat(n)">{{ n.name }}</span>
+          <span class="node-name" :class="{unnamed: !n.named, clickable: n.kids, search: !!catSearch.trim()}"
+                  :title="n.path || n.id"
+                  @click.stop="n.kids ? toggleCatNode(n) : toggleCat(n)">
+            <b>{{ n.name }}</b>
+            <em class="node-path" v-if="catSearch.trim()">{{ parentPath(n.path) || ("ID " + n.id) }}</em>
+          </span>
           <span class="node-id">{{ n.kids || '' }}</span>
           <span class="auto-tag" v-if="autoIds.has(n.id)">自动</span>
         </div>
