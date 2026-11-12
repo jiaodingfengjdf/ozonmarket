@@ -159,7 +159,9 @@ def t_wiring():
     check("CLI 有 content 命令", 'sub.add_parser("content"' in cli)
     check("content 支持 cached_only（抽屉不偷跑浏览器）", "cached_only" in srv and "need_fetch" in srv)
     check("抽屉详情支持 trend=0（省一半积分）", 'one("trend", "1") != "0"' in srv)
-    check("抽屉会加载商品内容", "loadDrawerContent" in js and "data-drawer-fetch" in js)
+    check("抽屉自动加载商品内容（无按钮）",
+          "loadDrawerContent" in js and "data-drawer-fetch" not in js
+          and "/api/content?sku=" in js and "timeoutMs" in js)
     check("抽屉详情不再连带查趋势", "&trend=0" in js)
     try:
         chrome = C.find_chrome({})

@@ -495,3 +495,8 @@ pre.json{background:#0f1b2e;color:#cfe1ff;border-radius:10px;padding:12px;font-s
   border-radius:10px;padding:12px 14px;margin:6px 0 14px;max-height:520px;overflow:auto}
 .richdesc img{max-width:100%;border-radius:8px;margin:6px 0}
 .richdesc h1,.richdesc h2,.richdesc h3{font-size:13.5px;margin:10px 0 6px;color:#12294f}
+
+/* 抽屉内容加载态（作用域化，避免影响按钮） */
+.drawer-content .drawer-loading{padding:14px 4px;color:#5b6b8c;font-size:12.6px;line-height:1.6}
+.drawer-content .drawer-loading:before{content:'';display:inline-block;width:12px;height:12px;margin-right:8px;
+  vertical-align:-1px;border:2px solid #cfdcf3;border-top-color:#2563eb;border-radius:50%;animation:spin .9s linear infinite}

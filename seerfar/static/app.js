@@ -96,10 +96,21 @@ function loadCats() {
 async function api(path, opts = {}) {
   const o = { method: opts.method || 'GET', headers: { 'Content-Type': 'application/json' } };
   if (opts.body) o.body = JSON.stringify(opts.body);
-  const r = await fetch(path, o);
-  let j; try { j = await r.json(); } catch (e) { throw new Error('服务返回非 JSON（HTTP ' + r.status + '）'); }
-  if (!j.ok) { const e = new Error(j.error || '请求失败'); e.type = j.type; throw e; }
-  return j;
+  let timer = null;
+  if (opts.timeoutMs) {
+    const ctl = new AbortController();
+    o.signal = ctl.signal;
+    timer = setTimeout(() => ctl.abort(), opts.timeoutMs);
+  }
+  try {
+    const r = await fetch(path, o);
+    let j; try { j = await r.json(); } catch (e) { throw new Error('服务返回非 JSON（HTTP ' + r.status + '）'); }
+    if (!j.ok) { const e = new Error(j.error || '请求失败'); e.type = j.type; throw e; }
+    return j;
+  } catch (e) {
+    if (e && e.name === 'AbortError') throw new Error('请求超时（' + Math.round(opts.timeoutMs / 1000) + ' 秒）');
+    throw e;
+  } finally { if (timer) clearTimeout(timer); }
 }
 /* POST：后端要求二次确认（多页按页计费）时，弹一次确认再带 confirm 重发 */
 async function postTool(path, body) {
@@ -1309,41 +1320,29 @@ async function loadContent(btn) {
   } finally { busy(btn, false); }
 }
 
-/* ---------- 抽屉里的商品内容（缓存优先，0 积分） ---------- */
+/* ---------- 抽屉里的商品内容：打开即自动加载（有缓存秒出，没有就现抓） ---------- */
+const _contentBusy = new Set();
 async function loadDrawerContent(sku) {
   const box = $('[data-drawer-content]');
   if (!box) return;
+  if (_contentBusy.has(sku)) return;      // 同一 SKU 正在抓取时不重复触发
+  _contentBusy.add(sku);
+  box.innerHTML = `<div class="drawer-loading">正在加载商品内容（属性 / 描述 / 变体维度 / 图片）…
+    <div class="tiny" style="margin-top:6px">首次需要本机浏览器渲染 Ozon 前台，约 5~15 秒；之后缓存 72 小时，秒出。0 积分。</div></div>`;
   try {
-    const j = await api('/api/content?sku=' + encodeURIComponent(sku) + '&cached_only=1');
+    const j = await api('/api/content?sku=' + encodeURIComponent(sku), { timeoutMs: 180000 });
     const d = j.data || {};
-    if (d.need_fetch) {
-      box.innerHTML = `<div class="empty">该商品内容还没抓过（属性 / 描述 / 变体维度 / 图片）
-        <div style="margin-top:8px"><button class="btn primary sm" data-drawer-fetch="${esc(sku)}">抓取内容（0 积分，约 5~15 秒）</button></div>
-        <div class="tiny" style="margin-top:6px">走 Ozon 前台（composer），用本机浏览器渲染；成功后缓存 72 小时，下次秒出。</div></div>`;
+    box.innerHTML = '';
+    if (!d.sku && !d.title) {
+      box.innerHTML = '<div class="empty">这个 SKU 没有拿到任何内容（可能已下架）</div>';
       return;
     }
-    box.innerHTML = '';
     renderContent(box, d);
   } catch (e) {
-    box.innerHTML = `<div class="empty" style="color:var(--bad)">商品内容读取失败：${esc(e.message)}</div>`;
-  }
+    box.innerHTML = `<div class="empty" style="color:var(--bad)">商品内容加载失败：${esc(e.message)}
+      <div class="tiny" style="margin-top:6px">关闭抽屉重开可重试；或到「竞品详情」页手动抓取。</div></div>`;
+  } finally { _contentBusy.delete(sku); }
 }
-
-document.addEventListener('click', async e => {
-  const b = e.target.closest('[data-drawer-fetch]');
-  if (!b) return;
-  const sku = b.dataset.drawerFetch;
-  const box = $('[data-drawer-content]');
-  busy(b, true, '抓取中');
-  if (box) box.innerHTML = '<div class="empty">正在用本机浏览器打开 Ozon 前台抓取（约 5~15 秒）…</div>';
-  try {
-    const j = await api('/api/content?sku=' + encodeURIComponent(sku));
-    if (box) { box.innerHTML = ''; renderContent(box, j.data || {}); }
-    toast('商品内容已抓取并缓存');
-  } catch (err) {
-    if (box) box.innerHTML = `<div class="empty" style="color:var(--bad)">抓取失败：${esc(err.message)}</div>`;
-  } finally { busy(b, false); }
-});
 
 /* ---------- 启动（多页面：只初始化当前页） ---------- */
 
