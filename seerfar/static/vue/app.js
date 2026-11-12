@@ -1074,10 +1074,11 @@
                 <template v-for="f in CARD_FIELDS" :key="f[0]">
                   <div class="c-kv" v-if="r[f[0]] !== null && r[f[0]] !== undefined && r[f[0]] !== ''">
                     <span class="c-k">{{ f[1] }}</span>
-                    <span class="c-v" :class="{num: f[2] !== 'text', txt: f[2] === 'text'}">
-                      {{ f[2] === 'money' ? money(r[f[0]])
-                         : f[2] === 'pct' ? fmt(r[f[0]]) + '%'
-                         : f[2] === 'num' ? fmt(r[f[0]]) : r[f[0]] }}
+                    <span class="c-v" :class="[{num: f[2] !== 'text', txt: f[2] === 'text'}, rateClass(r, f[0]), {hl: f[0] === 'sales' || f[0] === 'revenue'}]">
+                      <template v-if="f[2] === 'money'">{{ money(r[f[0]]) }}</template>
+                      <template v-else-if="f[2] === 'pct'">{{ fmt(r[f[0]]) }}%</template>
+                      <template v-else-if="f[2] === 'num'">{{ fmt(r[f[0]]) }}</template>
+                      <template v-else>{{ r[f[0]] }}</template>
                     </span>
                   </div>
                 </template>

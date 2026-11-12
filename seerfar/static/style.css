@@ -901,3 +901,14 @@ input[type=text],input[type=number],input[type=date],input:not([type]),select{he
 /* 卡片里类目/品牌/店铺等文本允许两行 */
 .c-v.txt{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
   overflow:hidden;font-weight:600}
+/* 卡片数据层级强化：标签更轻、数值更重、重点指标着色 */
+.c-meta{gap:8px 14px}
+.c-k{font-size:10px;color:var(--muted);letter-spacing:.02em}
+.c-v{font-size:13.5px;font-weight:700;color:var(--ink);letter-spacing:-.01em}
+.c-v.hl{font-size:15px;color:var(--accent);font-weight:800}
+.c-v.delta-up{color:#0a8f4d}
+.c-v.delta-down{color:#d13b3b}
+.pcard .c-price{font-size:19px;font-weight:800;letter-spacing:-.02em}
+.c-title{font-size:12.6px;font-weight:600}
+.c-foot{font-size:11px;color:var(--muted)}
+.c-foot .score{font-size:14px;font-weight:800;color:var(--accent)}
