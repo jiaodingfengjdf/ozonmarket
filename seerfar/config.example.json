@@ -27,6 +27,13 @@
     "xlsx": "data/ozon_categories.xlsx",
     "note": "Seerfar 官方 Ozon 类目 ID 清单（10021 个：29 一级 / 618 二级 / 9374 三级）。单列「类目ID」，层级由下划线前缀推导。"
   },
+  "content": {
+    "enabled": true,
+    "chrome": "",
+    "timeout_ms": 45000,
+    "ttl_hours": 72,
+    "min_interval": 1.5
+  },
   "server": {
     "host": "0.0.0.0",
     "port": 8900,

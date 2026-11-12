@@ -204,6 +204,10 @@ def main():
     p.add_argument("--limit", type=int, default=1000)
     p.add_argument("--file", default=None)
 
+    p = sub.add_parser("content", help="抓取 Ozon 前台商品内容（属性/描述/图片，0 积分）")
+    p.add_argument("--sku", required=True)
+    p.add_argument("--refresh", action="store_true")
+
     p = sub.add_parser("rescore", help="重算本地库机会分（从 raw 还原，0 积分）")
     p.add_argument("--limit", type=int, default=100000)
 
@@ -260,6 +264,29 @@ def main():
                 done += 1
             STORE.upsert_products(batch)
             print("已重算机会分:", done, "（其中从 raw 还原:", from_raw, "）")
+            return 0
+        if a.cmd == "content":
+            import sf_content as C
+            cfg = (client.cfg or {}).get("content") or {}
+            ttl = float(cfg.get("ttl_hours") or 72)
+            cached = None if a.refresh else STORE.content_get(str(a.sku), ttl)
+            if cached:
+                d = cached
+            else:
+                d = C.fetch(str(a.sku), cfg)
+                STORE.content_put(d)
+            print("标题:", d.get("title"))
+            print("品牌:", d.get("brand"), "| 评分:", d.get("rating"), "| 评论:", d.get("review_count"))
+            print("价格:", d.get("price"), "| 原价:", d.get("original_price"))
+            print("属性:", len(d.get("attributes") or []),
+                  "| 变体维度:", len(d.get("aspects") or []),
+                  "| 图片:", len(d.get("images") or []),
+                  "| 描述字数:", len(d.get("description") or ""),
+                  "| 标签:", len(d.get("tags") or []))
+            print("来源:", d.get("source"), "| 缓存命中:", bool(cached))
+            if d.get("attributes"):
+                print("属性预览:", "; ".join(f"{a['name']}={('/'.join(a['values'][:2]))}"
+                                          for a in d["attributes"][:6]))
             return 0
         if a.cmd == "cache-clear":
             if not a.yes:

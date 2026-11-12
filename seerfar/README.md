@@ -420,6 +420,80 @@ python tools/test_stage3.py     # 53 项：迁移/筛选分页/收藏/机会分�
 
 ---
 
+## 9.4 阶段 4：商品内容（属性 / 描述 / 图片 / 变体）——补 Seerfar 的空白
+
+**为什么之前没有**：Seerfar Open API 的 17 个接口全是「市场数据」，`查竞品` 返回的字段里没有
+`attributes / description / richContent / hashtags`；它只有 `labels`（0 新品 / 1 正品 / 2 畅销品）
+和用于筛选的 `tag` 词，以及 `变体特征`（只是给变体 Top 用的维度名）。所以属性表、描述、富文本、
+真正的前台标签，**Seerfar 一条都拿不到**。
+
+**怎么补的**：走 Ozon 前台自己的 Composer API。
+
+```
+GET https://www.ozon.ru/api/composer-api.bx/page/json/v2?url=/product/{sku}/
+```
+
+实测（2026-11-13）要点：
+
+| 坑 | 结论 |
+|---|---|
+| 直接 HTTP | `307` → 带 cookie 再请求变 `403`（返回 `incidentId` 反爬拦截页） |
+| 必须真实浏览器 | 用本机 Chrome/Edge `--headless=new` + **真实 UA**（默认 UA 带 `HeadlessChrome` 会被识别）；`--dump-dom` 打开上面的 URL，浏览器自动带通行 cookie，返回 `<pre>{...}</pre>` |
+| 一份 JSON 全都有 | `seo.script[0].innerHTML` = JSON-LD（标题/描述/品牌/评分/评论数/价格/图片）；`webShortCharacteristics` = 属性表；`webAspects` = 变体维度（每个值带 SKU 与价格）；`webGallery` = 主图；`webPrice` = 现价/卡价/原价；`tapTags` = 标签 |
+| 富文本 | **拿不到**：当前 PDP 不再返回 `richAnnotation` widget（新旧 layout 都不含）。要真富文本 HTML 只能走 Seller API（需要卖家 client_id/api_key） |
+
+新增能力：
+
+- `sf_content.py`：`fetch(sku)` → 浏览器抓 composer → 解析出
+  `title / brand / rating / review_count / price / card_price / original_price / description /
+   attributes[] / aspects[] / images[] / tags[] / rich`。
+- 缓存表 `product_content`（默认 72h，`config.json → content.ttl_hours`），命中直接 0 请求。
+- API：`GET /api/content?sku=149710140[&refresh=1]`（0 积分，与 Seerfar 额度无关）。
+- 界面：竞品详情页新增「商品内容（Ozon 前台）」卡片——属性两列表、变体维度 chips（点 chip 直接开该变体 SKU）、
+  描述、标签、图片墙；顶部显示来源 / 抓取时间 / 是否命中缓存。
+- CLI：`python cli.py content --sku 149710140 [--refresh]`。
+
+实测样例（`149710140`，首次 5~10 秒，第二次 0.07 秒）：
+```
+标题: Кофе растворимый Нескафе Голд, 500 г   品牌: НЕСКАФÉ   评分 4.9 / 1 181 144 条评论
+价格 1 099₽（卡价 1 072₽，原价 1 759₽）      描述 1 733 字
+属性 5 组：Тип=Кофе растворимый / Бренд=НЕСКАФÉ / Технология производства=Сублимированный …
+变体 2 维：Вес товара, г → 47.50 / 75 / 85 …；Название вкуса → Голд / Голд Бариста …（每个值带 SKU+价格）
+图片 10 张
+```
+
+配置（`config.json → content`）：
+```json
+"content": { "enabled": true, "chrome": "", "timeout_ms": 45000, "ttl_hours": 72, "min_interval": 1.5 }
+```
+`chrome` 留空自动探测 Chrome/Edge；`timeout_ms` 是浏览器渲染预算；`min_interval` 控制抓取间隔（对 Ozon 友好）。
+
+限制与注意：
+- 单次抓取要起一次浏览器，**5~15 秒**，请用缓存；批量抓请串行（`min_interval` 已做节流）。
+- Ozon 反爬随时可能升级，若返回「非 JSON / 拦截页」，`sf_content` 会明确报错并提示 UA/浏览器问题。
+- 只抓公开 PDP，不登录、不碰 Seller 后台；不含库存/物流的私有数据。
+
+**实测边界（3 个 SKU，2026-11-13）**——不要抱不切实际的期待：
+
+| 内容 | 能否拿到 | 说明 |
+|---|---|---|
+| 描述正文 | ✅ | JSON-LD `description`，本例 1 733 字（纯文本，无 HTML 结构） |
+| 属性表 | ◐ **只有「О товаре」那一组** | 3 个 SKU 都是 5 条（咖啡：Тип/Бренд/Технология/Состав/Без кофеина；手机：屏幕/电池/CPU/材质…）。完整「Все характеристики」不再由 composer 返回（试过 `/characteristics/`、`layout_container=pdpPageFull`、`/modal/characteristics` 都只有这 5 条） |
+| 变体维度 | ✅ | 每个值带 SKU 与价格（对选品比"全属性"更实用） |
+| 图片 | ✅ | 10~24 张 |
+| 前台标签 `tapTags` | ✗ 字段在、内容空 | 3 个 SKU 全为 `items: []`，Ozon 前台已不暴露标签 |
+| 富文本 `richAnnotation` | ✗ | 当前 PDP 不返回该 widget |
+| 全属性 / 富文本 HTML / 官方标签 | — | 只能走 **Seller API**：`/v1/product/info/attributes`、`/v1/product/info/description`（需卖家 client_id + api_key，且要商品属于该店铺） |
+
+Seerfar 那边能对上的只有：`labels`（0 新品 / 1 正品 / 2 畅销品）和 `tag`（筛选用标签词），**不是**商品详情里的属性/标签。
+
+自测（0 请求、0 积分）：
+```powershell
+python tools/test_stage4_content.py    # 41 项：DOM→JSON 提取、字段解析、兜底、缓存 TTL、接线
+```
+
+---
+
 ## 10. 与旧项目的边界
 
 旧 `README.md` 里那套（composer-api / cookie / CDP / 出口池 / MM / Seller 类目树）**全部停用**，

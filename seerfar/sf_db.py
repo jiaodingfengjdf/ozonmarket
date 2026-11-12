@@ -103,6 +103,27 @@ CREATE TABLE IF NOT EXISTS product (
 );
 CREATE INDEX IF NOT EXISTS idx_prod_cat ON product(category_id);
 
+-- 商品内容缓存（Ozon composer 抓来的属性/描述/图片，阶段4）
+CREATE TABLE IF NOT EXISTS product_content (
+  sku            TEXT PRIMARY KEY,
+  title          TEXT,
+  brand          TEXT,
+  description    TEXT,
+  rating         REAL,
+  review_count   INTEGER,
+  price          REAL,
+  card_price     REAL,
+  original_price REAL,
+  currency       TEXT,
+  attributes_json TEXT,
+  aspects_json   TEXT,
+  images_json    TEXT,
+  tags_json      TEXT,
+  rich_json      TEXT,
+  source         TEXT,
+  fetched_at     REAL NOT NULL
+);
+
 -- 阶段3 扩展列（旧库通过 _migrate 自动补列）
 CREATE TABLE IF NOT EXISTS favorite (
   sku        TEXT PRIMARY KEY,
@@ -530,6 +551,37 @@ class Store:
                 "breakeven=:breakeven, suggested=:suggested WHERE sku=:sku", seq)
         return len(seq)
 
+    # ---------- 商品内容（Ozon composer，阶段4） ----------
+    def content_get(self, sku, ttl_hours=72):
+        row = self.q1("SELECT * FROM product_content WHERE sku=?", (str(sku),))
+        if not row:
+            return None
+        if ttl_hours and (time.time() - float(row.get("fetched_at") or 0)) > ttl_hours * 3600:
+            return None
+        for k in ("attributes_json", "aspects_json", "images_json", "tags_json", "rich_json"):
+            row[k[:-5]] = loads(row.get(k), [] if k != "rich_json" else None)
+            row.pop(k, None)
+        row["cached"] = True
+        return row
+
+    def content_put(self, d):
+        self.exec(
+            "INSERT OR REPLACE INTO product_content(sku,title,brand,description,rating,"
+            "review_count,price,card_price,original_price,currency,attributes_json,"
+            "aspects_json,images_json,tags_json,rich_json,source,fetched_at) "
+            "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (str(d.get("sku")), d.get("title"), d.get("brand"), d.get("description"),
+             _n(d.get("rating")), int(d["review_count"]) if d.get("review_count") is not None else None,
+             _n(d.get("price")), _n(d.get("card_price")), _n(d.get("original_price")),
+             d.get("currency"), dumps(d.get("attributes") or []), dumps(d.get("aspects") or []),
+             dumps(d.get("images") or []), dumps(d.get("tags") or []),
+             dumps(d.get("rich")) if d.get("rich") else None,
+             d.get("source") or "ozon-composer", time.time()))
+        return 1
+
+    def content_count(self):
+        r = self.q1("SELECT COUNT(*) AS n FROM product_content")
+        return r["n"] if r else 0
     # ---------- 收藏 ----------
     def favorite_toggle(self, sku, tags="", note=""):
         sku = str(sku)

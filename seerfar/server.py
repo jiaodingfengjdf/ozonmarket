@@ -24,6 +24,7 @@ except Exception:
 from sf_catalog import get_catalog
 from sf_client import (ApiError, AuthError, BudgetExceeded, ConfirmRequired,
                        CreditExhausted, ENDPOINTS, get_client)
+import sf_content as CONTENT
 import sf_db
 from sf_db import STORE
 from sf_export import (EXPORT_DIR, export_full, export_keywords, export_products,
@@ -207,6 +208,8 @@ class Handler(BaseHTTPRequestHandler):
                                              int(one("page", 1) or 1),
                                              int(one("size", 20) or 20))
                 return self.ok(r, cached=r.get("cached"), cost=r.get("cost"))
+            if p == "/api/content":
+                return self.content(one("sku", ""), one("refresh") == "1")
             if p == "/api/similar":
                 r = SELECTOR.similar(one("sku", ""))
                 return self.ok(r, cached=r.get("cached"), cost=r.get("cost"))
@@ -316,6 +319,23 @@ class Handler(BaseHTTPRequestHandler):
             return self.fail(e, 500, type(e).__name__)
 
     # ---------- 具体处理 ----------
+    def content(self, sku, refresh=False):
+        """Ozon 前台商品内容（属性/描述/变体维度/图片/标签）。0 积分，走本机浏览器。"""
+        sku = str(sku or "").strip()
+        if not sku.isdigit():
+            raise ValueError("SKU 必须是纯数字")
+        cfg = (CLIENT.cfg or {}).get("content") or {}
+        ttl = float(cfg.get("ttl_hours") or 72)
+        if not refresh:
+            cached = STORE.content_get(sku, ttl)
+            if cached:
+                return self.ok(cached, cached=True)
+        if not cfg.get("enabled", True):
+            return self.fail("内容抓取已在 config.json 的 content.enabled 关闭", 400, "ContentDisabled")
+        data = CONTENT.fetch(sku, cfg)
+        STORE.content_put(data)
+        return self.ok(dict(data, cached=False), cached=False)
+
     def reviews(self, sku, kind, language):
         if not sku:
             raise ValueError("缺少 sku")

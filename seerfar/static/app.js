@@ -503,6 +503,7 @@ function renderTable(sel, rows, cols) {
   }));
 }
 document.addEventListener('click', e => {
+  const so = e.target.closest('[data-sku-open]'); if (so && so.dataset.skuOpen) { openDrawer(so.dataset.skuOpen); return; }
   const a = e.target.closest('.sku-link'); if (a) { openDrawer(a.dataset.sku); return; }
   const card = e.target.closest('.pcard'); if (card && card.dataset.sku) openDrawer(card.dataset.sku);
 });
@@ -1087,7 +1088,8 @@ document.addEventListener('click', e => {
       'rev-stat': () => loadReview('stat', b), 'rev-words': () => loadReview('words', b),
       'rev-original': () => loadReview('original', b), 'rev-report': () => loadReview('report', b),
       'rev-task': () => createRevTask(b), 'similar': () => loadSimilar(b),
-      'profit': () => runProfit(b), 'export-report': () => exportReport(b)
+      'profit': () => runProfit(b), 'export-report': () => exportReport(b),
+      'content': () => loadContent(b)
     }[act];
     if (fn) { fn(); return; }
   }
@@ -1228,6 +1230,63 @@ async function exportReport(btn) {
     toast('报告已导出：' + j.data.file);
   } catch (e) { toast(e.message, true); }
   finally { busy(btn, false); }
+}
+
+/* ---------- 商品内容（Ozon composer：属性/描述/变体/图片/标签） ---------- */
+function renderContent(box, d) {
+  if (!box) return;
+  const attrs = d.attributes || [], aspects = d.aspects || [], images = d.images || [], tags = d.tags || [];
+  const kv = attrs.length
+    ? `<h4>商品属性（${attrs.length}）</h4><div class="attrgrid">` +
+      attrs.map(a => `<div class="akey">${esc(a.name || '—')}</div><div class="aval">${esc((a.values || []).join(' / ') || '—')}</div>`).join('') + '</div>'
+    : '<div class="empty">没有属性数据</div>';
+  const asp = aspects.length
+    ? `<h4>变体维度（${aspects.length}）</h4>` + aspects.map(a => `
+        <div class="aspectrow"><span class="aspectname">${esc(a.name)}</span>
+        <span class="wchips">${(a.values || []).slice(0, 40).map(v =>
+          `<a class="wchip" href="javascript:;" data-sku-open="${esc(v.sku || '')}" title="SKU ${esc(v.sku || '')}">${esc(v.value)}${v.price ? ' · ' + fmt(v.price) + '₽' : ''}</a>`).join('')}</span></div>`).join('')
+    : '<div class="empty">没有变体维度</div>';
+  const desc = d.description
+    ? `<h4>描述（${d.description.length} 字）</h4><div class="descbox">${esc(d.description)}</div>`
+    : '<h4>描述</h4><div class="empty">该商品没有文本描述</div>';
+  const imgs = images.length
+    ? `<h4>图片（${images.length}）</h4><div class="thumbs">` + images.slice(0, 24).map(u =>
+        `<a href="${esc(u)}" target="_blank" rel="noopener"><img src="${esc(u)}" loading="lazy"></a>`).join('') + '</div>'
+    : '';
+  const tagbox = tags.length
+    ? `<h4>标签（${tags.length}）</h4><div class="wchips">${tags.map(t => `<span class="wchip">${esc(t)}</span>`).join('')}</div>`
+    : '';
+  const rich = d.rich
+    ? `<h4>富文本 JSON</h4><pre class="json">${esc(JSON.stringify(d.rich, null, 2)).slice(0, 4000)}</pre>`
+    : `<h4>富文本</h4><div class="empty">当前 Ozon 前台不再返回 richAnnotation 富文本；如需富文本 HTML 只能走 Seller API。</div>`;
+  box.innerHTML = `<div class="contenthead">
+      <b>${esc(d.title || '')}</b>
+      <span class="muted">${esc(d.brand || '')}${d.rating ? ' · ★' + fmt(d.rating) : ''}${d.review_count ? ' · ' + fmt(d.review_count) + ' 条评论' : ''}${d.price ? ' · ' + money(d.price) + '₽' + (d.original_price ? '（原价 ' + money(d.original_price) + '₽）' : '') : ''}</span>
+    </div>${kv}${asp}${desc}${tagbox}${imgs}${rich}`;
+}
+
+async function loadContent(btn) {
+  const sku = curSku(); if (!sku) return toast('先填商品 SKU', true);
+  const refresh = $('[data-content-refresh]');
+  const box = $('[data-content-box]');
+  busy(btn, true, '抓取中');
+  $('[data-content-meta]').innerHTML = '正在用本机浏览器打开 Ozon 前台抓取（首次约 8~15 秒）…';
+  try {
+    const url = '/api/content?sku=' + encodeURIComponent(sku) + (refresh && refresh.checked ? '&refresh=1' : '');
+    const j = await api(url);
+    const d = j.data || {};
+    renderContent(box, d);
+    $('[data-content-count]').textContent = (d.attributes || []).length + '/' + (d.aspects || []).length;
+    $('[data-content-note]').textContent = d.cached ? '缓存' : '刚抓取';
+    const t = d.fetched_at ? new Date(d.fetched_at * 1000).toLocaleString('zh-CN') : '';
+    $('[data-content-meta]').innerHTML = `SKU <b>${esc(d.sku || sku)}</b> · 来源 ${esc(d.source || 'ozon-composer')}`
+      + ` · ${d.cached ? '命中本地缓存（0 请求）' : '实时抓取'} · 抓取时间 ${esc(t)} · <b>0 积分</b>`;
+    toast(d.cached ? '已从缓存读取' : '内容抓取成功');
+  } catch (e) {
+    $('[data-content-meta]').innerHTML = '抓取失败：' + esc(e.message);
+    box.innerHTML = `<div class="empty" style="color:var(--bad)">${esc(e.message)}</div>`;
+    toast(e.message, true);
+  } finally { busy(btn, false); }
 }
 
 /* ---------- 启动（多页面：只初始化当前页） ---------- */

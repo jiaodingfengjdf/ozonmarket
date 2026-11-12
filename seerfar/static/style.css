@@ -467,3 +467,16 @@ td.dim{color:var(--muted)}
 .favbtn.on{color:#f5a524}
 .favbtn:hover{color:#f59e0b}
 td .favbtn{display:inline-block}
+/* ===== 商品内容（属性/描述/图片）===== */
+.contenthead{display:flex;flex-direction:column;gap:3px;margin:4px 0 10px}
+.contenthead b{font-size:13.5px;color:#12294f}
+.attrgrid{display:grid;grid-template-columns:180px 1fr;gap:4px 14px;margin:6px 0 14px;align-items:baseline}
+.attrgrid .akey{color:#5b6b8c;font-size:12.2px}
+.attrgrid .aval{color:#1f2c45;font-size:12.6px}
+.aspectrow{display:flex;gap:10px;align-items:flex-start;margin:6px 0}
+.aspectname{min-width:120px;color:#5b6b8c;font-size:12.2px;padding-top:4px}
+.descbox{white-space:pre-wrap;line-height:1.7;font-size:12.8px;color:#243450;background:#fbfdff;
+  border:1px solid #e8eef8;border-radius:10px;padding:12px 14px;margin:6px 0 14px;max-height:520px;overflow:auto}
+.thumbs{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 12px}
+.thumbs img{width:86px;height:86px;object-fit:cover;border-radius:8px;border:1px solid #e6edf8}
+pre.json{background:#0f1b2e;color:#cfe1ff;border-radius:10px;padding:12px;font-size:11.6px;max-height:320px;overflow:auto}
