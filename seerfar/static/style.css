@@ -861,3 +861,9 @@ input[type=text],input[type=number],input[type=date],input:not([type]),select{he
 .selchip.auto{background:rgba(0,0,0,.045);color:var(--muted);border-style:dashed}
 .selchip.auto::before{content:"自动";font-size:9px;opacity:.75;margin-right:4px}
 .cat-mode{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);margin:6px 2px 0}
+/* 自动补齐的三级类目：树里可见、灰勾样式 */
+.cnode.auto .node-name{color:var(--muted)}
+.cnode.auto .catck{opacity:.5}
+.auto-tag{font-size:9px;color:var(--muted);border:1px dashed var(--line);border-radius:6px;padding:0 4px;margin-left:4px;flex:none}
+.cat-mode{display:flex;align-items:flex-start;gap:6px;font-size:11px;color:var(--ink-2);margin:8px 2px 4px;line-height:1.4;cursor:pointer}
+.cat-mode input{margin-top:2px}

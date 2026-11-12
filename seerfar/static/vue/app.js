@@ -456,14 +456,23 @@
         if (n.level >= 3) {
           selectedCats.value.push({ id: n.id, name: n.name });
         } else {
-          // 父类目：先记自身，再把三级子类标记为「自动带入」，界面上不显示为勾选
+          // 父类目：记自身；按开关决定是否补三级（Ozon 只认三级，不补通常查不到商品）
           selectedCats.value.push({ id: n.id, name: n.name });
-          const j = await api('/api/category/leaves?parent=' + encodeURIComponent(n.id) + '&limit=20');
-          (j.data || []).forEach(l => {
-            if (!selectedCats.value.some(c => c.id === l.id)) {
-              selectedCats.value.push({ id: l.id, name: l.cn || l.id, auto: n.id });
-            }
-          });
+          if (autoLeaves.value) {
+            const j = await api('/api/category/leaves?parent=' + encodeURIComponent(n.id) + '&limit=20');
+            const leaves = (j.data || []);
+            leaves.forEach(l => {
+              if (!selectedCats.value.some(c => c.id === l.id)) {
+                selectedCats.value.push({ id: l.id, name: l.cn || l.id, auto: n.id });
+              }
+            });
+            // 把补进来的三级展开显示，让用户看得见
+            n.children = leaves.map(l => ({
+              id: l.id, name: l.cn || l.id, path: l.cn_path || '', level: 3,
+              kids: 0, named: true, open: false, children: null
+            }));
+            n.open = true;
+          }
         }
         saveCats();
       }
@@ -485,6 +494,9 @@
       });
       /* 搜索：走后端全库检索（10k 类目），而不是只过滤已加载的一级节点 */
       const catHits = ref([]), catSearching = ref(false);
+      const autoLeaves = ref(localStorage.getItem('sf_autoleaves') !== '0');
+      watch(autoLeaves, v => localStorage.setItem('sf_autoleaves', v ? '1' : '0'));
+      const autoIds = computed(() => new Set(selectedCats.value.filter(c => c.auto).map(c => c.id)));
       let catTimer = null;
       watch(catSearch, (v) => {
         const q = (v || '').trim();
@@ -862,7 +874,7 @@
       }
       return {
         nav, page, cfg, route, status, loading, rows, note, pageNo, pageMeta, viewMode,
-        formEl, quickDays, activePreset, cats, flatCat, selectedIds, displayList, catHits, catSearching,
+        formEl, quickDays, activePreset, cats, flatCat, selectedIds, displayList, catHits, catSearching, autoLeaves, autoIds,
         thumbSize, setThumb,
         tableWrap, hTrack, hOn, hThumbW, hThumbX, thumbDown, trackDown, onTableScroll, imgCls, catFiltered, catSearch, catPanelOpen, selectedCats,
         product, content, contentLoading, rich, extraRows, drawerRich, drawerExtra,
@@ -926,16 +938,18 @@
       </div>
       <div class="tree">
         <div class="cnode" v-for="n in displayList" :key="n.id"
-             :class="{selected: selectedIds.has(n.id)}"
+             :class="{selected: selectedIds.has(n.id), auto: autoIds.has(n.id)}"
              :style="{ paddingLeft: (6 + (n._depth || 0) * 14) + 'px' }">
           <span class="arrow" @click.stop="toggleCatNode(n)">{{ n.kids ? (n.open ? '▾' : '▸') : '·' }}</span>
           <input type="checkbox" class="catck" :checked="selectedIds.has(n.id)" @change="toggleCat(n)">
           <span class="node-name" :class="{unnamed: !n.named, clickable: n.kids}" :title="n.path || n.id"
                   @click.stop="n.kids ? toggleCatNode(n) : toggleCat(n)">{{ n.name }}</span>
           <span class="node-id">{{ n.kids || '' }}</span>
+          <span class="auto-tag" v-if="autoIds.has(n.id)">自动</span>
         </div>
         <div class="empty tiny" v-if="catSearch.trim() && !catSearching && !displayList.length">没有匹配的类目</div>
       </div>
+      <label class="cat-mode"><input type="checkbox" v-model="autoLeaves"> 勾选父类目时自动补齐三级（Ozon 只认三级，关闭后二级可能查不到）</label>
       <div class="side-foot"><span class="tiny">勾选父类目时，会把它下面前 20 个三级类目作为「自动」标签一并提交（虚线灰标），取消父类目会一起移除；自动带入的类目不会显示成勾选状态</span></div>
     </aside>
 
