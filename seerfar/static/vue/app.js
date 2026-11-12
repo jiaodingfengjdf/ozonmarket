@@ -185,7 +185,7 @@
           if (d1) f.up_time_from = Date.parse(d1 + 'T00:00:00');
           if (d2) f.up_time_to = Date.parse(d2 + 'T23:59:59');
           if (quickDays.value && !d1 && !d2) {
-            f.up_time_from = Date.now() - quickDays.value * 86400000;
+            // 官方只支持 creationDate 月数枚举：只发这个，避免触发本地过滤
             f.creation_date = quickDays.value <= 30 ? 1 : quickDays.value <= 90 ? 3
               : quickDays.value <= 180 ? 6 : quickDays.value <= 365 ? 12 : 24;
           }
