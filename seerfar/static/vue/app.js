@@ -463,7 +463,8 @@
         const out = [];
         const walk = (list, depth) => {
           (list || []).forEach(n => {
-            out.push(Object.assign({}, n, { depth }));
+            n._depth = depth;              // 直接挂原对象，保证点击改的是同一份状态
+            out.push(n);
             if (n.open && n.children && n.children.length) walk(n.children, depth + 1);
           });
         };
@@ -892,10 +893,11 @@
       <div class="tree">
         <div class="cnode" v-for="n in flatCat" :key="n.id"
              :class="{selected: selectedIds.has(n.id)}"
-             :style="{ paddingLeft: (6 + n.depth * 14) + 'px' }">
+             :style="{ paddingLeft: (6 + (n._depth || 0) * 14) + 'px' }">
           <span class="arrow" @click.stop="toggleCatNode(n)">{{ n.kids ? (n.open ? '▾' : '▸') : '·' }}</span>
           <input type="checkbox" class="catck" :checked="selectedIds.has(n.id)" @change="toggleCat(n)">
-          <span class="node-name" :class="{unnamed: !n.named}" :title="n.path || n.id">{{ n.name }}</span>
+          <span class="node-name" :class="{unnamed: !n.named, clickable: n.kids}" :title="n.path || n.id"
+                  @click.stop="n.kids ? toggleCatNode(n) : toggleCat(n)">{{ n.name }}</span>
           <span class="node-id">{{ n.kids || '' }}</span>
         </div>
       </div>

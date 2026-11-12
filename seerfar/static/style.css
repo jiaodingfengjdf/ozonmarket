@@ -849,3 +849,11 @@ input[type=text],input[type=number],input[type=date],input:not([type]),select{he
   .bottombar{width:calc(100vw - 24px);justify-content:space-between;bottom:10px}
   .bottombar .bb-track{width:38vw}
 }
+/* 类目树：名称可点击 + 层级视觉 */
+.cnode{padding-top:2px;padding-bottom:2px}
+.cnode .node-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cnode .node-name.clickable{cursor:pointer}
+.cnode .node-name.clickable:hover{color:var(--accent)}
+.cnode .arrow{width:16px;text-align:center;cursor:pointer;color:var(--muted);transition:color .2s var(--ease),transform .2s var(--ease)}
+.cnode .arrow:hover{color:var(--accent)}
+.cnode.selected{background:var(--accent-soft)}
