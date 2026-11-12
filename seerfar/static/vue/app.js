@@ -447,17 +447,29 @@
       }
       async function toggleCat(n) {
         const i = selectedCats.value.findIndex(c => c.id === n.id);
-        if (i >= 0) { selectedCats.value.splice(i, 1); saveCats(); return; }
-        if (n.level >= 3) { selectedCats.value.push({ id: n.id, name: n.name }); }
-        else {
+        if (i >= 0) {
+          // 取消：连同这个父类目自动带入的叶子一起移除
+          selectedCats.value.splice(i, 1);
+          selectedCats.value = selectedCats.value.filter(c => c.auto !== n.id);
+          saveCats(); return;
+        }
+        if (n.level >= 3) {
+          selectedCats.value.push({ id: n.id, name: n.name });
+        } else {
+          // 父类目：先记自身，再把三级子类标记为「自动带入」，界面上不显示为勾选
+          selectedCats.value.push({ id: n.id, name: n.name });
           const j = await api('/api/category/leaves?parent=' + encodeURIComponent(n.id) + '&limit=20');
-          (j.data || []).forEach(l => { if (!selectedCats.value.some(c => c.id === l.id)) selectedCats.value.push({ id: l.id, name: l.cn || l.id }); });
+          (j.data || []).forEach(l => {
+            if (!selectedCats.value.some(c => c.id === l.id)) {
+              selectedCats.value.push({ id: l.id, name: l.cn || l.id, auto: n.id });
+            }
+          });
         }
         saveCats();
       }
       function saveCats() { try { sessionStorage.setItem('sf_cats_vue', JSON.stringify(selectedCats.value)); } catch (e) { } }
 
-      const selectedIds = computed(() => new Set(selectedCats.value.map(c => c.id)));
+      const selectedIds = computed(() => new Set(selectedCats.value.filter(c => !c.auto).map(c => c.id)));
       /* 可见节点展平：深度优先、保序、带 depth 用于缩进 */
       const flatCat = computed(() => {
         const out = [];
@@ -904,7 +916,7 @@
           <button class="linkbtn" @click="selectedCats.splice(0); saveCats()" v-if="selectedCats.length">清空</button>
         </div>
         <div class="selchips" v-if="catPanelOpen && selectedCats.length">
-          <span class="selchip" v-for="c in selectedCats" :key="c.id"><span>{{ c.name }}</span>
+          <span class="selchip" :class="{auto: c.auto}" v-for="c in selectedCats" :key="c.id"><span>{{ c.name }}</span>
             <i title="移除" @click="selectedCats = selectedCats.filter(x => x.id !== c.id); saveCats()">×</i></span>
         </div>
         <div class="side-search">
@@ -924,7 +936,7 @@
         </div>
         <div class="empty tiny" v-if="catSearch.trim() && !catSearching && !displayList.length">没有匹配的类目</div>
       </div>
-      <div class="side-foot"><span class="tiny">勾选父类目会自动带入前 20 个三级类目（上限 20 个）</span></div>
+      <div class="side-foot"><span class="tiny">勾选父类目时，会把它下面前 20 个三级类目作为「自动」标签一并提交（虚线灰标），取消父类目会一起移除；自动带入的类目不会显示成勾选状态</span></div>
     </aside>
 
     <main class="main" :key="route">
