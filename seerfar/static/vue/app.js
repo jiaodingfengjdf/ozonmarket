@@ -298,6 +298,7 @@
             meta = {}; text = list.length + ' 条记录 · 本地查询';
           }
           splitDims(list);
+          fillDates(list);
           rows.value = list; pageMeta.value = meta; note.value = text;
           localStorage.setItem('sf_rows_' + tool, '1');
           await nextTick();
@@ -381,6 +382,19 @@
 
       /* ---------- 单元格渲染 ---------- */
       const RATE_KEYS = new Set(['sales_rate', 'revenue_rate', 'ratings_rate', 'growth30']);
+      /* upTime 是毫秒时间戳，本地库不返回格式化字段：这里补成 YYYY-MM-DD */
+      function fillDates(list) {
+        (list || []).forEach(r => {
+          if (r.up_time_date) return;
+          const ts = Number(r.up_time);
+          if (!isFinite(ts) || ts <= 0) return;
+          const d = new Date(ts);
+          if (isNaN(d.getTime())) return;
+          try { r.up_time_date = d.toLocaleDateString('sv-SE'); }        // sv-SE 即 YYYY-MM-DD
+          catch (e) { r.up_time_date = d.toISOString().slice(0, 10); }
+        });
+        return list;
+      }
       /* 把 "340×240×120" 这类尺寸串拆成长/宽/高（mm），数字便于排序 */
       function splitDims(list) {
         (list || []).forEach(r => {
