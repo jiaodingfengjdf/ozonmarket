@@ -438,6 +438,10 @@
 
       onMounted(async () => {
         window.addEventListener('hashchange', onHash);
+        const bar = document.querySelector('.topbar');
+        const onScroll = () => { if (bar) bar.classList.toggle('scrolled', window.scrollY > 6); };
+        window.addEventListener('scroll', onScroll, { passive: true });
+        onScroll();
         refreshStatus();
         try {
           const saved = JSON.parse(sessionStorage.getItem('sf_cats_vue') || '[]');
@@ -512,6 +516,24 @@
       const STAR_CNT = { 5: 'fiveStarCount', 4: 'fourStarCount', 3: 'threeStarCount', 2: 'twoStarCount', 1: 'oneStarCount' };
       const starPct = n => Number(((revData.value || {}).statistic || {})[STAR_PCT[n]] || 0);
       const starCnt = n => ((revData.value || {}).statistic || {})[STAR_CNT[n]];
+      const sortKey = ref(''), sortDir = ref('desc');
+      function sortBy(key) {
+        if (!key) return;
+        if (sortKey.value === key) sortDir.value = sortDir.value === 'desc' ? 'asc' : 'desc';
+        else { sortKey.value = key; sortDir.value = 'desc'; }
+      }
+      const sortedRows = computed(() => {
+        const list = rows.value || [];
+        if (!sortKey.value) return list;
+        const k = sortKey.value, dir = sortDir.value === 'asc' ? 1 : -1;
+        return list.slice().sort((a, b) => {
+          const av = a[k], bv = b[k];
+          const an = typeof av === 'number', bn = typeof bv === 'number';
+          if (an && bn) return (av - bv) * dir;
+          if (an !== bn) return (an ? -1 : 1) * dir;
+          return String(av == null ? '' : av).localeCompare(String(bv == null ? '' : bv), 'zh-CN') * dir;
+        });
+      });
       const varChars = ref([]), varRows = ref([]), varTopRows = ref([]), varMeta = ref('');
       const simRows = ref([]), simMeta = ref('');
       const revKind = ref('stat'), revData = ref(null), revMeta = ref(''), revLang = ref('CN');
@@ -669,6 +691,7 @@
         toastMsg, toastBad,
         fmt, money, esc, cell, rateClass, run, resetForm, exportXlsx, go, openDrawer, closeDrawer,
         toggleFav, onPresetClick, applyPreset, toggleCatNode, toggleCat, loadContent, formClick, saveCats, refreshStatus,
+        sortKey, sortDir, sortBy, sortedRows,
         // 深水区
         VAR_COLS, SIM_COLS, BRAND_COLS, CAT_COLS, PROFIT_KEYS, PROFIT_LABEL, DIM_KEYS, DIM_LABEL,
         varChars, varRows, varTopRows, varMeta, simRows, simMeta,
@@ -750,7 +773,7 @@
       <div class="side-foot"><span class="tiny">勾选父类目会自动带入前 20 个三级类目（上限 20 个）</span></div>
     </aside>
 
-    <main class="main">
+    <main class="main" :key="route">
       <div class="pagehead">
         <div><h1>{{ page.title }}</h1><p class="muted">{{ page.sub }}</p></div>
         <div class="head-badges">
@@ -817,14 +840,29 @@
         </div>
         <div class="statusline" v-html="note || page.resultHint"></div>
         <div class="tablewrap" v-if="viewMode==='table'">
-          <div class="placeholder" v-if="!rows.length && !loading">
+          <table v-if="loading && !rows.length">
+            <thead><tr><th v-for="c in cfg.cols.slice(0, 7)" :key="c[0]">{{ c[1] }}</th></tr></thead>
+            <tbody>
+              <tr class="skelrow" v-for="n in 7" :key="n">
+                <td v-for="c in cfg.cols.slice(0, 7)" :key="c[0]">
+                  <div class="skel" :class="{ 'w40': c[0]==='title', 'w20': c[0]!=='title' }"></div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="placeholder" v-else-if="!rows.length">
             <div class="ph-icon">◈</div><div class="ph-title">还没有查询结果</div>
             <div class="ph-desc">设置条件后点查询；首次约 9 积分，命中缓存不扣费</div>
           </div>
           <table v-else>
-            <thead><tr><th v-for="c in cfg.cols" :key="c[0]">{{ c[1] }}</th></tr></thead>
+            <thead><tr>
+              <th v-for="c in cfg.cols" :key="c[0]" :class="{sorted: sortKey === c[0]}"
+                  @click="sortBy(c[0])" style="cursor:pointer">
+                {{ c[1] }}<span class="sortind" v-if="sortKey === c[0]">{{ sortDir === 'asc' ? '▲' : '▼' }}</span>
+              </th>
+            </tr></thead>
             <tbody>
-              <tr v-for="(r, i) in rows" :key="i">
+              <tr v-for="(r, i) in sortedRows" :key="i">
                 <td v-for="c in cfg.cols" :key="c[0]" :class="{num: typeof r[c[0]]==='number'}">
                   <template v-if="c[0]==='fav'"><button class="favbtn" :class="{on: r._fav}" @click="toggleFav(r)">{{ r._fav ? '★' : '☆' }}</button></template>
                   <template v-else-if="c[0]==='img'"><img class="thumb" :src="r.image_url || r.img || ''" loading="lazy" v-if="r.image_url || r.img"></template>
@@ -1064,6 +1102,8 @@
     </div>
   </div>
 
+  <!-- 抽屉遮罩 -->
+  <div class="drawer-backdrop" :class="{open: drawerOpen}" @click="closeDrawer"></div>
   <!-- 抽屉：仅 0 积分内容 -->
   <div class="drawer" :class="{open: drawerOpen}" v-show="drawerOpen">
     <div class="drawer-head"><span>商品 {{ drawerSku }}</span><button @click="closeDrawer">×</button></div>
@@ -1099,7 +1139,9 @@
     <div class="drawer-foot">抽屉只展示 0 积分内容；Seerfar 指标请到「竞品详情」查询（约 20 积分/次）。</div>
   </div>
 
-  <div class="toast" :class="{bad: toastBad}" v-show="toastMsg">{{ toastMsg }}</div>
+  <transition name="toast">
+    <div class="toast" :class="{bad: toastBad}" v-if="toastMsg">{{ toastMsg }}</div>
+  </transition>
 </div>`
   };
 

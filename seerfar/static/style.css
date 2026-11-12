@@ -580,3 +580,150 @@ a.wchip:hover{background:var(--accent-soft);color:var(--accent);transform:transl
 .tablewrap td .ttl{display:inline-block;max-width:320px;overflow:hidden;text-overflow:ellipsis;
   white-space:nowrap;vertical-align:middle}
 .tablewrap td:has(.ttl){max-width:320px}
+/* ==========================================================================
+   v3 · 动效与交互层（Apple 风）
+   ========================================================================== */
+
+/* ---------- 深色模式 ---------- */
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#0b0b0d; --card:#141416; --card-2:#101012;
+    --ink:#f5f5f7; --ink-2:#c7c7cc; --muted:#8e8e93;
+    --line:rgba(255,255,255,.10); --line-2:rgba(255,255,255,.06);
+    --accent:#0a84ff; --accent-2:#409cff; --accent-soft:rgba(10,132,255,.18);
+    --shadow-1:0 1px 2px rgba(0,0,0,.6),0 10px 30px -16px rgba(0,0,0,.9);
+    --shadow-2:0 2px 8px rgba(0,0,0,.55),0 28px 60px -28px rgba(0,0,0,.95);
+  }
+  body{background:
+    radial-gradient(1100px 520px at 12% -8%,rgba(10,132,255,.16),transparent 62%),
+    radial-gradient(900px 480px at 92% -12%,rgba(94,92,230,.14),transparent 58%),var(--bg)}
+  .topbar,.pagenav{background:rgba(18,18,20,.72)}
+  .sidebar{background:rgba(20,20,22,.78)}
+  .filtercard,.resultcard,.card,.scard,.pcard,.contentblock{background:var(--card)}
+  input,select,.side-search input{background:rgba(255,255,255,.06);color:var(--ink)}
+  input:focus,select:focus{background:rgba(255,255,255,.10)}
+  .tablewrap thead th{background:rgba(22,22,24,.9)}
+  .tablewrap tbody tr:hover{background:rgba(255,255,255,.045)}
+  .descbox,.richdesc{background:rgba(255,255,255,.04)}
+  .badge{background:rgba(255,255,255,.08)}
+  .btn{background:rgba(255,255,255,.08);color:var(--ink)}
+  .btn.ghost{background:rgba(255,255,255,.05)}
+  .iconbtn,.quickdates button,.vt.on{background:rgba(255,255,255,.08);color:var(--ink)}
+  .drawer{background:rgba(20,20,22,.92)}
+  .drawer-head{background:rgba(20,20,22,.85)}
+  .toast{background:rgba(58,58,60,.94)}
+}
+
+/* ---------- 页面切换（route key 变化时重播） ---------- */
+@keyframes pageIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes riseIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+.main{animation:pageIn .42s var(--ease) both}
+.main > .pagehead{animation:riseIn .5s var(--ease) both}
+.main > .presets{animation:riseIn .5s var(--ease) .05s both}
+.main > .filtercard{animation:riseIn .5s var(--ease) .1s both}
+.main > .resultcard,.main > section.resultcard{animation:riseIn .55s var(--ease) .14s both}
+.main > section:nth-of-type(2){animation-delay:.18s}
+.main > section:nth-of-type(3){animation-delay:.22s}
+.main > section:nth-of-type(4){animation-delay:.26s}
+.main > section:nth-of-type(5){animation-delay:.30s}
+
+/* ---------- 滚动淡入（v-reveal 指令） ---------- */
+.reveal{opacity:0;transform:translateY(18px);transition:opacity .6s var(--ease),transform .6s var(--ease)}
+.reveal.in{opacity:1;transform:none}
+
+/* ---------- 顶栏滚动阴影 + 导航指示器 ---------- */
+.topbar{transition:box-shadow .35s var(--ease),background .35s var(--ease),height .3s var(--ease)}
+.topbar.scrolled{box-shadow:0 10px 30px -22px rgba(0,0,0,.55)}
+.pnav{transition:color .25s var(--ease),background .35s var(--ease),transform .35s var(--ease)}
+.pnav:hover{transform:translateY(-1px)}
+.pnav.active{animation:pillPop .42s var(--ease) both}
+@keyframes pillPop{0%{transform:scale(.94)}60%{transform:scale(1.03)}100%{transform:scale(1)}}
+
+/* ---------- 状态药丸：数值变化时弹一下 ---------- */
+.stats .stat{animation:statPop .45s var(--ease) both}
+.stats .stat:nth-child(2){animation-delay:.03s}
+.stats .stat:nth-child(3){animation-delay:.06s}
+.stats .stat:nth-child(4){animation-delay:.09s}
+.stats .stat:nth-child(5){animation-delay:.12s}
+.stats .stat:nth-child(6){animation-delay:.15s}
+@keyframes statPop{from{opacity:0;transform:translateY(-4px) scale(.96)}to{opacity:1;transform:none}}
+
+/* ---------- 卡片：更立体的层次与描边高光 ---------- */
+.card,.scard,.pcard,.filtercard,.resultcard{position:relative}
+.filtercard::before,.resultcard::before{
+  content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  background:linear-gradient(180deg,rgba(255,255,255,.55),rgba(255,255,255,0) 42%);
+  opacity:.6;
+}
+@media (prefers-color-scheme: dark){
+  .filtercard::before,.resultcard::before{background:linear-gradient(180deg,rgba(255,255,255,.07),transparent 45%)}
+}
+.card:hover,.scard:hover{border-color:rgba(10,132,255,.28)}
+.preset{will-change:transform}
+
+/* ---------- 表格：粘性磨砂表头、排序箭头、行高亮 ---------- */
+.tablewrap thead th{transition:color .2s var(--ease),background .2s var(--ease)}
+.tablewrap thead th:hover{color:var(--ink)}
+.tablewrap thead th.sorted{color:var(--accent)}
+.tablewrap thead th .sortind{display:inline-block;margin-left:4px;font-size:9px;transform:translateY(-1px)}
+.tablewrap tbody tr{position:relative}
+.tablewrap tbody tr::after{
+  content:"";position:absolute;left:0;right:0;bottom:0;height:1px;background:var(--line-2);
+}
+.tablewrap tbody tr:hover td{background:rgba(10,132,255,.045)}
+.tablewrap tbody td{transition:background .2s var(--ease)}
+@media (prefers-color-scheme: dark){ .tablewrap tbody tr:hover td{background:rgba(10,132,255,.12)} }
+
+/* ---------- 骨架屏 ---------- */
+.skel{height:12px;border-radius:6px;
+  background:linear-gradient(90deg,rgba(0,0,0,.06) 25%,rgba(0,0,0,.11) 37%,rgba(0,0,0,.06) 63%);
+  background-size:400% 100%;animation:shimmer 1.3s ease infinite}
+@media (prefers-color-scheme: dark){
+  .skel{background:linear-gradient(90deg,rgba(255,255,255,.07) 25%,rgba(255,255,255,.14) 37%,rgba(255,255,255,.07) 63%);background-size:400% 100%}
+}
+.skelrow td{padding:12px 10px}
+.skelrow .skel{width:70%}
+.skelrow .skel.w40{width:40%}
+.skelrow .skel.w20{width:20%}
+
+/* ---------- 抽屉：遮罩 + 弹簧入场 ---------- */
+.drawer-backdrop{
+  position:fixed;inset:0;z-index:85;background:rgba(0,0,0,.28);
+  -webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);
+  opacity:0;pointer-events:none;transition:opacity .4s var(--ease);
+}
+.drawer-backdrop.open{opacity:1;pointer-events:auto}
+.drawer{transition:transform .56s cubic-bezier(.19,1.02,.24,1),opacity .35s var(--ease)}
+.drawer-foot{position:sticky;bottom:0;background:inherit}
+
+/* ---------- Toast 动效 ---------- */
+.toast{transition:opacity .3s var(--ease),transform .5s cubic-bezier(.19,1.02,.24,1)}
+.toast-enter-from,.toast-leave-to{opacity:0;transform:translate(-50%,22px) scale(.98)}
+
+/* ---------- 交互细节 ---------- */
+.btn:focus-visible,.iconbtn:focus-visible,input:focus-visible,select:focus-visible,
+.pnav:focus-visible,.chipbtn:focus-visible,.wchip:focus-visible{
+  outline:none;box-shadow:0 0 0 4px rgba(10,132,255,.28)
+}
+.wchip{transition:transform .22s var(--ease),background .22s var(--ease),color .22s var(--ease)}
+a.wchip:active{transform:scale(.97)}
+.sku-link{position:relative;transition:color .2s var(--ease)}
+.sku-link::after{content:"";position:absolute;left:0;right:0;bottom:-2px;height:1px;background:currentColor;
+  transform:scaleX(0);transform-origin:left;transition:transform .3s var(--ease)}
+.sku-link:hover::after{transform:scaleX(1)}
+.thumbs img,.richimgs img{transition:transform .45s var(--ease),box-shadow .45s var(--ease)}
+
+/* ---------- 减少动效偏好 ---------- */
+@media (prefers-reduced-motion:reduce){
+  .main,.main > *,.reveal{animation:none !important;opacity:1 !important;transform:none !important}
+  .drawer,.drawer-backdrop{transition:none !important}
+}
+
+/* ---------- 自定义滚动条 ---------- */
+*{scrollbar-width:thin;scrollbar-color:rgba(0,0,0,.22) transparent}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:rgba(0,0,0,.18);border-radius:10px;border:3px solid transparent;background-clip:content-box}
+::-webkit-scrollbar-thumb:hover{background:rgba(0,0,0,.3);background-clip:content-box}
+@media (prefers-color-scheme: dark){
+  ::-webkit-scrollbar-thumb{background:rgba(255,255,255,.18);background-clip:content-box}
+}
