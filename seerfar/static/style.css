@@ -490,3 +490,8 @@ pre.json{background:#0f1b2e;color:#cfe1ff;border-radius:10px;padding:12px;font-s
 .drawer .thumbs img{width:66px;height:66px}
 .drawer .aspectrow{flex-direction:column;gap:4px}
 .drawer .aspectname{min-width:0}
+/* ===== 富文本块 ===== */
+.richdesc{font-size:12.6px;line-height:1.7;color:#243450;background:#fbfdff;border:1px solid #e8eef8;
+  border-radius:10px;padding:12px 14px;margin:6px 0 14px;max-height:520px;overflow:auto}
+.richdesc img{max-width:100%;border-radius:8px;margin:6px 0}
+.richdesc h1,.richdesc h2,.richdesc h3{font-size:13.5px;margin:10px 0 6px;color:#12294f}

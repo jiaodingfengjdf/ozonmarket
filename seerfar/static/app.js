@@ -15,7 +15,6 @@ const money = v => v == null ? '—' : Number(v).toLocaleString('zh-CN', { maxim
 /* ---------- 列定义（顺序 = 展示顺序：基础+产品数据 → 价格销售 → 口碑售后 → 流量转化漏斗 → 广告促销 → 上架/变体 → 综合） ---------- */
 const RESULT_COLS = [
   ['fav', ''], ['img', ''], ['sku', 'SKU'], ['title', '商品标题'],
-  ['weight', '重量g'], ['volume', '体积L'], ['dimension', '尺寸'],
   ['category_cn', '类目'], ['brand', '品牌'], ['seller', '店铺'],
   ['seller_type_text', '卖家类型'], ['fulfillment_text', '配送'],
   ['price', '价格 ₽'], ['discount', '平均折扣%'], ['sales', '月销量'], ['sales_rate', '销量环比%'],
@@ -1259,12 +1258,27 @@ function renderContent(box, d) {
     ? `<h4>标签（${tags.length}）</h4><div class="wchips">${tags.map(t => `<span class="wchip">${esc(t)}</span>`).join('')}</div>`
     : '';
   const rich = d.rich
-    ? `<h4>富文本 JSON</h4><pre class="json">${esc(JSON.stringify(d.rich, null, 2)).slice(0, 4000)}</pre>`
-    : `<h4>富文本</h4><div class="empty">当前 Ozon 前台不再返回 richAnnotation 富文本；如需富文本 HTML 只能走 Seller API。</div>`;
+    ? (typeof d.rich === 'string'
+      ? `<h4>富文本</h4><div class="richdesc">${d.rich}</div>`
+      : `<h4>富文本（${(d.rich.content || []).length} 个块）</h4><pre class="json">${esc(JSON.stringify(d.rich, null, 2)).slice(0, 6000)}</pre>`)
+    : `<h4>富文本</h4><div class="empty">该商品没有富文本块（只有纯文本描述）。</div>`;
+  const ex = d.extra || {};
+  const exRows = [
+    ['卖家', ex.seller], ['公司', ex.seller_company], ['工商注册号', ex.seller_psrn],
+    ['店铺评分', ex.seller_rating], ['店铺评价/订单', ex.seller_reviews],
+    ['卖家地址', ex.seller_address], ['诚信标志', ex.honest_sign],
+    ['库存', ex.stock], ['提问数', ex.questions], ['产地', ex.country],
+    ['类目路径', ex.category], ['货号', ex.offer_code], ['折扣%', ex.discount],
+    ['图片数', ex.image_count],
+  ].filter(([, v]) => v !== null && v !== undefined && v !== '');
+  const extra = exRows.length
+    ? `<h4>卖家与库存</h4><div class="attrgrid">` +
+      exRows.map(([k, v]) => `<div class="akey">${esc(k)}</div><div class="aval">${esc(String(v))}</div>`).join('') + '</div>'
+    : '';
   box.innerHTML = `<div class="contenthead">
       <b>${esc(d.title || '')}</b>
       <span class="muted">${esc(d.brand || '')}${d.rating ? ' · ★' + fmt(d.rating) : ''}${d.review_count ? ' · ' + fmt(d.review_count) + ' 条评论' : ''}${d.price ? ' · ' + money(d.price) + '₽' + (d.original_price ? '（原价 ' + money(d.original_price) + '₽）' : '') : ''}</span>
-    </div>${kv}${asp}${desc}${tagbox}${imgs}${rich}`;
+    </div>${extra}${kv}${asp}${desc}${tagbox}${imgs}${rich}`;
 }
 
 async function loadContent(btn) {

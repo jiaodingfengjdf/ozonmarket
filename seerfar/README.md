@@ -494,6 +494,51 @@ python tools/test_stage4_content.py    # 41 项：DOM→JSON 提取、字段解�
 
 ---
 
+## 9.5 照搬旧项目实现（v2，2026-11-13）
+
+9.4 的浏览器方案只拿到「О товаре」5 条属性；按你的要求，直接照搬旧项目 `web/pdp.py` + `web/ozon_http.py` 的口径，现在能拿**完整属性 + 富文本**。
+
+**搬过来的文件**（原样，仅改 cookie 路径）：
+
+```
+seerfar/pdp.py                     旧 web/pdp.py：PDP 全字段解析（属性/描述/富文本/卖家/货号）
+seerfar/ozon_http.py               旧 web/ozon_http.py：cookie 快照 + urllib 直连，含挑战循环识别与 cookie 续期
+seerfar/tools/ozon_cookie_export.mjs  旧 tools/：从调试 Chrome 导出 cookie
+seerfar/tools/launch_chrome.ps1       旧 web/：按真实 Chrome 版本生成 UA 的调试实例
+```
+
+**关键发现（旧项目为什么能拿到）**：第二页必须用 `layout_container=pdpPage2column`，不是 `pdpPageFull`：
+
+```
+/product/{sku}/                                             → 主页（价格/图/评分/aspects）
+/product/{sku}/?layout_container=pdpPage2column&layout_page_index=2
+   ├─ webCharacteristics.totalCount=13, characteristics[0].short → 完整属性表
+   └─ webDescription-*（可能有两个）
+        ├─ {characteristics:[{title,content}]}      → 成分/储存条件等结构化块
+        └─ {richAnnotationJson:{content:[...]}}     → 富文本（raTextBlock/raShowcase）
+```
+
+**两条路径，自动回落**：
+
+| 路径 | 状态 | 说明 |
+|---|---|---|
+| `ozon_http` 纯 HTTP（cookie 直连） | ⚠️ 当前环境 403 | `robots.txt` 200，但 `/api/` 被 TLS 指纹拦（有头/无头导出的 cookie 都试过）。代码保留，网络允许时最快（2 请求） |
+| 浏览器两页并发（`pdpPage2column`） | ✅ 实测可用 | 一次详情 7~9 秒；命中缓存 0.03 秒 |
+
+**实测（149710140，真实抓取）**：
+```
+来源=ozon-composer-browser   属性 12 条（原来 5 条）  变体 2  图片 10  描述 1733 字  富文本 dict(2568B)
+属性：Артикул / Тип / Бренд / Технология производства / Состав кофе / Без кофеина /
+      Интенсивность вкуса / Единиц в одном товаре / Мин·Макс температура / Срок годности 540 дней / Страна-изготовитель
+卖家：Ozon fresh · ООО «Интернет Решения» · ИНН 1027739244741 · 诚信标志 是
+```
+
+**按你的要求：不要重量 / 长宽高**——属性名命中 `вес|длин|ширин|высот|глубин|габарит|weight|length|width|height|depth|dimension` 的一律丢弃（`Размер` 保留，可能是服装尺码），`extra` 也不再输出这些字段；结果表格里的 重量g / 体积L / 尺寸 三列一并去掉（数据仍保留给利润模型算计费重）。
+
+接口与缓存不变：`GET /api/content?sku=&refresh=1`、表 `product_content`（默认 72h）。抽屉与「商品内容」卡片现在多出「卖家与库存」区块和富文本块渲染。
+
+---
+
 ## 10. 与旧项目的边界
 
 旧 `README.md` 里那套（composer-api / cookie / CDP / 出口池 / MM / Seller 类目树）**全部停用**，

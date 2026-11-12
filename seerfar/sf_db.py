@@ -120,6 +120,7 @@ CREATE TABLE IF NOT EXISTS product_content (
   images_json    TEXT,
   tags_json      TEXT,
   rich_json      TEXT,
+  extra_json     TEXT,
   source         TEXT,
   fetched_at     REAL NOT NULL
 );
@@ -307,6 +308,9 @@ class Store:
         self.exec("CREATE INDEX IF NOT EXISTS idx_prod_opp ON product(opportunity)")
         self.exec("CREATE INDEX IF NOT EXISTS idx_prod_margin ON product(net_margin)")
         self.exec("CREATE INDEX IF NOT EXISTS idx_kw_opp ON keyword(opportunity)")
+        have = {r["name"] for r in self.q("PRAGMA table_info(product_content)")}
+        if have and "extra_json" not in have:
+            self.exec("ALTER TABLE product_content ADD COLUMN extra_json TEXT")
 
     # ---------- 基础 ----------
     def q(self, sql, args=()):
@@ -558,8 +562,10 @@ class Store:
             return None
         if ttl_hours and (time.time() - float(row.get("fetched_at") or 0)) > ttl_hours * 3600:
             return None
-        for k in ("attributes_json", "aspects_json", "images_json", "tags_json", "rich_json"):
-            row[k[:-5]] = loads(row.get(k), [] if k != "rich_json" else None)
+        for k in ("attributes_json", "aspects_json", "images_json", "tags_json",
+                  "rich_json", "extra_json"):
+            default = [] if k in ("attributes_json", "aspects_json", "images_json", "tags_json") else None
+            row[k[:-5]] = loads(row.get(k), default)
             row.pop(k, None)
         row["cached"] = True
         return row
@@ -568,14 +574,15 @@ class Store:
         self.exec(
             "INSERT OR REPLACE INTO product_content(sku,title,brand,description,rating,"
             "review_count,price,card_price,original_price,currency,attributes_json,"
-            "aspects_json,images_json,tags_json,rich_json,source,fetched_at) "
-            "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "aspects_json,images_json,tags_json,rich_json,extra_json,source,fetched_at) "
+            "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (str(d.get("sku")), d.get("title"), d.get("brand"), d.get("description"),
              _n(d.get("rating")), int(d["review_count"]) if d.get("review_count") is not None else None,
              _n(d.get("price")), _n(d.get("card_price")), _n(d.get("original_price")),
              d.get("currency"), dumps(d.get("attributes") or []), dumps(d.get("aspects") or []),
              dumps(d.get("images") or []), dumps(d.get("tags") or []),
              dumps(d.get("rich")) if d.get("rich") else None,
+             dumps(d.get("extra") or {}),
              d.get("source") or "ozon-composer", time.time()))
         return 1
 

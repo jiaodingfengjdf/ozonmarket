@@ -12,6 +12,7 @@ __pycache__/
 seerfar/data/*.db
 seerfar/data/*.db-*
 seerfar/data/_*.json
+seerfar/data/ozon_cookies.json
 seerfar/export/
 export/
 out/

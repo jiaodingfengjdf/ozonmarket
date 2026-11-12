@@ -174,8 +174,57 @@ def t_wiring():
         check("fetch 拒绝非数字 SKU", True)
 
 
+
+def t_full_pdp():
+    print("\n[6] 旧项目实现：pdp/page2 全量属性 + 富文本 + 重量过滤")
+    import pdp
+    import ozon_http
+    check("pdp.parse_full 可用", callable(getattr(pdp, "parse_full", None)))
+    check("ozon_http.get_json 可用", hasattr(ozon_http, "get_json"))
+    check("PAGE2 使用 pdpPage2column", "pdpPage2column" in C.PAGE2, C.PAGE2)
+    check("重量/尺寸过滤规则", bool(C.WEIGHT_DIM_RX.search("Вес товара, г"))
+          and bool(C.WEIGHT_DIM_RX.search("Габариты")) and not bool(C.WEIGHT_DIM_RX.search("Размер одежды")))
+
+    main = {
+        "widgetStates": {
+            "webAspects-1-default-1": json.dumps({"aspects": [{
+                "aspectName": "Цвет", "aspectKey": "Color",
+                "variants": [{"sku": "1", "data": {"textRs": [{"content": "Черный"}]}, "price": 100}]}]}),
+            "webPrice-2-default-1": json.dumps({"price": "1 099 ₽", "cardPrice": "1 072 ₽",
+                                                "originalPrice": "1 759 ₽"}),
+        },
+        "seo": {"script": [{"innerHTML": json.dumps({
+            "@type": "Product", "description": "完整正文描述" * 60,
+            "aggregateRating": {"ratingValue": "4.9", "reviewCount": "11"}}, ensure_ascii=False)}]},
+    }
+    page2 = {
+        "widgetStates": {
+            "webCharacteristics-1-pdpPage2column-2": json.dumps({"totalCount": 3, "characteristics": [{"short": [
+                {"key": "Type", "name": "Тип", "values": [{"text": "Кофе"}]},
+                {"key": "Weight", "name": "Вес товара, г", "values": [{"text": "500"}]},
+                {"key": "Dims", "name": "Габариты", "values": [{"text": "10x10x10"}]},
+            ]}]}),
+            "webDescription-1-pdpPage2column-2": json.dumps({"characteristics": [
+                {"title": "Состав", "content": "Кофе натуральный"}]}),
+            "webDescription-2-pdpPage2column-2": json.dumps({"richAnnotationJson": {"content": [
+                {"widgetName": "raTextBlock", "text": {"content": ["富文本第一段"]}}]}}),
+        }
+    }
+    rec = pdp.parse_full(main, page2)
+    c = C.build_content(rec, main, "123", source="test", page2_payload=page2)
+    names = [a["name"] for a in c["attributes"]]
+    check("属性来自 page2（含 Тип）", "Тип" in names, names)
+    check("重量属性被过滤", not any("Вес" in n for n in names), names)
+    check("尺寸属性被过滤", not any("Габарит" in n for n in names), names)
+    check("描述用 JSON-LD 长文", len(c["description"]) > 200, len(c["description"]))
+    check("富文本是对象", isinstance(c["rich"], dict) and c["rich"].get("content"), type(c["rich"]).__name__)
+    check("extra 无重量/尺寸", not any(k in (c.get("extra") or {})
+                                      for k in ("weight", "length", "width", "height", "depth")),
+          list((c.get("extra") or {}).keys()))
+    check("价格兜底到主页 widget", c["price"] == 1099, c["price"])
+    check("变体维度来自主页 aspects", c["aspects"] and c["aspects"][0]["values"][0]["sku"] == "1", c["aspects"])
 if __name__ == "__main__":
-    t_extract(); t_parse(); t_fallbacks(); t_cache(); t_wiring()
+    t_extract(); t_parse(); t_fallbacks(); t_cache(); t_wiring(); t_full_pdp()
     print(f"\n==== 结果：{len(PASS)} 通过 / {len(FAIL)} 失败 ====")
     if FAIL:
         print("失败项：" + "；".join(FAIL))
