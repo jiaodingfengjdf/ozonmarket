@@ -67,7 +67,26 @@
   }
 
   window.__FMT = { fmt, money, esc };
-  const MiniTable = {
+  const TreeNode = {
+  name: 'TreeNode',
+  props: ['node', 'selectedIds'],
+  emits: ['toggle-expand', 'toggle-select'],
+  template: `<div class="tnode">
+    <div class="cnode" :class="{selected: selectedIds.has(node.id)}">
+      <span class="arrow" @click.stop="$emit('toggle-expand', node)">{{ node.kids ? (node.open ? '▾' : '▸') : '·' }}</span>
+      <input type="checkbox" class="catck" :checked="selectedIds.has(node.id)" @change="$emit('toggle-select', node)">
+      <span class="node-name" :class="{unnamed: !node.named}" :title="node.path || node.id">{{ node.name }}</span>
+      <span class="node-id">{{ node.kids || '' }}</span>
+    </div>
+    <div class="kids" v-if="node.open && node.children && node.children.length">
+      <tree-node v-for="c in node.children" :key="c.id" :node="c" :selected-ids="selectedIds"
+                 @toggle-expand="n => $emit('toggle-expand', n)"
+                 @toggle-select="n => $emit('toggle-select', n)"></tree-node>
+    </div>
+  </div>`
+};
+
+const MiniTable = {
     props: { cols: Array, rows: Array, empty: { type: String, default: '没有数据' } },
     setup(props) {
       const F = window.__FMT;
@@ -457,6 +476,7 @@
       }
       function saveCats() { try { sessionStorage.setItem('sf_cats_vue', JSON.stringify(selectedCats.value)); } catch (e) { } }
 
+      const selectedIds = computed(() => new Set(selectedCats.value.map(c => c.id)));
       const catFiltered = computed(() => {
         const q = catSearch.value.trim().toLowerCase();
         return q ? cats.value.filter(n => n.name.toLowerCase().includes(q) || String(n.id).includes(q)) : cats.value;
@@ -876,29 +896,9 @@
         </div>
       </div>
       <div class="tree">
-        <template v-for="n in catFiltered" :key="n.id">
-          <div class="cnode" :class="{selected: selectedCats.some(c => c.id === n.id)}">
-            <span class="arrow" @click="toggleCatNode(n)">{{ n.kids ? (n.open ? '▾' : '▸') : '·' }}</span>
-            <input type="checkbox" class="catck" :checked="selectedCats.some(c => c.id === n.id)" @change="toggleCat(n)">
-            <span class="node-name" :class="{unnamed: !n.named}" :title="n.path || n.id">{{ n.name }}</span>
-            <span class="node-id">{{ n.kids || '' }}</span>
-          </div>
-          <div class="kids" v-if="n.open && n.children">
-            <div class="cnode" v-for="k in n.children" :key="k.id" :class="{selected: selectedCats.some(c => c.id === k.id)}">
-              <span class="arrow" @click="toggleCatNode(k)">{{ k.kids ? (k.open ? '▾' : '▸') : '·' }}</span>
-              <input type="checkbox" class="catck" :checked="selectedCats.some(c => c.id === k.id)" @change="toggleCat(k)">
-              <span class="node-name" :class="{unnamed: !k.named}">{{ k.name }}</span>
-              <span class="node-id">{{ k.kids || '' }}</span>
-            </div>
-            <div class="kids" v-for="k in n.children.filter(x => x.open && x.children)" :key="'g' + k.id">
-              <div class="cnode" v-for="g in k.children" :key="g.id" :class="{selected: selectedCats.some(c => c.id === g.id)}">
-                <span class="arrow">·</span>
-                <input type="checkbox" class="catck" :checked="selectedCats.some(c => c.id === g.id)" @change="toggleCat(g)">
-                <span class="node-name">{{ g.name }}</span>
-              </div>
-            </div>
-          </div>
-        </template>
+        <tree-node v-for="n in catFiltered" :key="n.id" :node="n" :selected-ids="selectedIds"
+                   @toggle-expand="toggleCatNode" @toggle-select="toggleCat"></tree-node>
+      </div>
       </div>
       <div class="side-foot"><span class="tiny">勾选父类目会自动带入前 20 个三级类目（上限 20 个）</span></div>
     </aside>
@@ -1296,5 +1296,6 @@
 
   const _app = createApp(App);
   _app.component('mini-table', MiniTable);
+_app.component('tree-node', TreeNode);
   _app.mount('#app');
 })();
