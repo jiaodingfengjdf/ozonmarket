@@ -105,6 +105,8 @@
       const pageNo = ref(1);
       const pageMeta = ref({});
       const viewMode = ref(localStorage.getItem('sf_view') || 'table');
+      const thumbSize = ref(localStorage.getItem('sf_thumb') || 'l');
+      function setThumb(s) { thumbSize.value = s; localStorage.setItem('sf_thumb', s); }
       const formEl = ref(null);
       const quickDays = ref(0);
       const activePreset = ref('all');
@@ -729,7 +731,7 @@
       }
       return {
         nav, page, cfg, route, status, loading, rows, note, pageNo, pageMeta, viewMode,
-        formEl, quickDays, activePreset, cats, catFiltered, catSearch, catPanelOpen, selectedCats,
+        formEl, quickDays, activePreset, cats, thumbSize, setThumb, catFiltered, catSearch, catPanelOpen, selectedCats,
         product, content, contentLoading, rich, extraRows, drawerRich, drawerExtra,
         drawerOpen, drawerSku, drawerContent, drawerLoading,
         toastMsg, toastBad,
@@ -877,6 +879,11 @@
         <div class="resulthead">
           <div class="resultr"><h3>{{ page.resultTitle }}</h3><span class="badge solid">{{ rows.length }}</span></div>
           <div class="resultbar-actions">
+            <div class="viewtoggle" title="缩略图尺寸">
+              <button class="vt" :class="{on: thumbSize==='s'}" @click="setThumb('s')">小图</button>
+              <button class="vt" :class="{on: thumbSize==='m'}" @click="setThumb('m')">中图</button>
+              <button class="vt" :class="{on: thumbSize==='l'}" @click="setThumb('l')">大图</button>
+            </div>
             <div class="viewtoggle"><button class="vt" :class="{on: viewMode==='table'}" @click="viewMode='table'; localStorage.setItem('sf_view','table')">☰ 列表</button>
               <button class="vt" :class="{on: viewMode==='card'}" @click="viewMode='card'; localStorage.setItem('sf_view','card')">▦ 卡片</button></div>
             <button class="btn ghost sm" @click="exportXlsx">导出 XLSX</button>
@@ -909,7 +916,7 @@
               <tr v-for="(r, i) in sortedRows" :key="i">
                 <td v-for="c in cfg.cols" :key="c[0]" :class="{num: typeof r[c[0]]==='number', 'num-tween': isTweening(r, c[0])}">
                   <template v-if="c[0]==='fav'"><button class="favbtn" :class="{on: r._fav}" @click="toggleFav(r)">{{ r._fav ? '★' : '☆' }}</button></template>
-                  <template v-else-if="c[0]==='img'"><img class="thumb phimg" :src="r.image_url || r.img || ''" loading="lazy" @load="onImgLoad" v-if="r.image_url || r.img"></template>
+                  <template v-else-if="c[0]==='img'"><img class="thumb phimg" :class="'sz-' + thumbSize" :src="r.image_url || r.img || ''" loading="lazy" @load="onImgLoad" v-if="r.image_url || r.img"></template>
                   <template v-else-if="c[0]==='sku'"><a class="sku-link" href="javascript:;" @click="openDrawer(r.sku || r.id)">{{ r.sku || r.id }}</a></template>
                   <template v-else-if="c[0]==='link'"><a v-if="r.url || r.product_url" :href="r.url || r.product_url" target="_blank" rel="noopener">打开 ↗</a></template>
                   <template v-else-if="c[0]==='title' || c[0]==='dim' || c[0]==='seller' || c[0]==='brand'"><span class="ttl" :title="String(r[c[0]]||'')" :class="rateClass(r, c[0])">{{ cell(r, c[0]) }}</span></template>

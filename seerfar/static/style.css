@@ -792,3 +792,13 @@ td.num-tween{animation:numFlash .9s var(--ease) both}
   -webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}
 .hero-actions .btn:hover{background:rgba(255,255,255,.26)}
 @media (max-width:640px){ .hero{height:240px;border-radius:18px} .hero-meta{left:16px;right:16px;bottom:14px} }
+/* ==========================================================================
+   表格缩略图尺寸三档（小 38 / 中 96 / 大 152）
+   ========================================================================== */
+.tablewrap td .thumb{transition:transform .45s var(--ease),filter .7s var(--ease),width .3s var(--ease),height .3s var(--ease)}
+.thumb.sz-s{width:38px;height:38px;border-radius:9px}
+.thumb.sz-m{width:96px;height:96px;border-radius:12px}
+.thumb.sz-l{width:152px;height:152px;border-radius:14px}
+.tablewrap tbody td{padding-top:6px;padding-bottom:6px}
+.tablewrap tbody tr:has(.sz-m) td{padding-top:8px;padding-bottom:8px}
+.tablewrap tbody tr:has(.sz-l) td{padding-top:10px;padding-bottom:10px}
