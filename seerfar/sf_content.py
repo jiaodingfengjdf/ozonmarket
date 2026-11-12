@@ -285,6 +285,9 @@ def parse_payload(payload, sku=""):
     tags = []
     for key in ("tapTags", "webHashtags"):
         box = _as_obj(st.get(key))
+        for b in box.get("badges") or []:
+            if isinstance(b, dict) and b.get("text"):
+                tags.append(str(b["text"]).strip())
         for it in box.get("items") or []:
             if isinstance(it, dict):
                 t = it.get("text") or _text_of(it, "textRs")
@@ -428,6 +431,51 @@ def desc_from_states(payload):
     return desc, rich
 
 
+
+def _chars_from(box):
+    """解析 webCharacteristics / webShortCharacteristics 的 characteristics。
+
+    两种形态都兼容：
+      {"characteristics": [{"name":..,"values":[{"text":..}]}, ...]}
+      {"characteristics": [{"short": [{"name":..,"values":[...]}, ...]}, ...]}
+    """
+    out = []
+    if not isinstance(box, dict):
+        return out
+    for group in box.get("characteristics") or []:
+        if not isinstance(group, dict):
+            continue
+        items = group.get("short") if isinstance(group.get("short"), list) else [group]
+        for c in items:
+            if not isinstance(c, dict):
+                continue
+            name = (c.get("name") or "").strip() or _text_of(c.get("title") or {}, "textRs", "text")
+            vals = []
+            for v in c.get("values") or []:
+                if isinstance(v, dict):
+                    txt = v.get("text") or _text_of(v.get("text") or {}, "textRs", "text") or _text_of(v, "textRs")
+                else:
+                    txt = str(v)
+                txt = html.unescape(str(txt or "")).strip()
+                if txt:
+                    vals.append(txt)
+            if name and vals:
+                out.append({"name": name, "values": vals, "key": c.get("key")})
+    return out
+
+
+def _topic_tags(states):
+    """主题标签（前台 tagList）：[{name, link}]"""
+    box = _as_obj(states.get("tagList"))
+    out = []
+    for it in box.get("items") or []:
+        if isinstance(it, dict):
+            nm = (it.get("name") or "").strip()
+            if nm:
+                out.append({"name": nm, "link": it.get("link") or ""})
+    return out
+
+
 def build_content(rec, main_payload, sku="", source="ozon-composer-http", page2_payload=None):
     """把 pdp.parse_full 的结果 + composer 主页 widget 合成统一结构。"""
     st = _states(main_payload or {})
@@ -440,6 +488,22 @@ def build_content(rec, main_payload, sku="", source="ozon-composer-http", page2_
         vals = [x.strip() for x in str(raw).split(" / ") if str(x).strip()]
         if name and vals and not WEIGHT_DIM_RX.search(name):
             attributes.append({"name": name, "values": vals, "key": a.get("key")})
+
+    # page2 的 webCharacteristics 是完整属性表（首页只有短表），按名称合并补充
+    p2_states = _states(page2_payload or {})
+    seen_names = {a["name"] for a in attributes}
+    for a in _chars_from(_as_obj(p2_states.get("webCharacteristics"))) + \
+            _chars_from(_as_obj(p2_states.get("webShortCharacteristics"))):
+        if a["name"] in seen_names or WEIGHT_DIM_RX.search(a["name"]):
+            continue
+        attributes.append(a)
+        seen_names.add(a["name"])
+
+    # 主题标签（tagList）作为一条属性展示
+    topic = _topic_tags(p2_states) or _topic_tags(st)
+    if topic and "主题标签" not in seen_names:
+        attributes.append({"name": "主题标签", "values": [x["name"] for x in topic],
+                           "key": "TopicTags"})
 
     aspects = []
     asp = _as_obj(st.get("webAspects"))
@@ -488,6 +552,20 @@ def build_content(rec, main_payload, sku="", source="ozon-composer-http", page2_
                     tags.append(str(t))
             elif isinstance(it, str):
                 tags.append(it)
+
+    # page2 的 hashtags（badges[].text）并入标签
+    for key in ("webHashtags", "tapTags"):
+        box = _as_obj(p2_states.get(key))
+        for b in box.get("badges") or []:
+            if isinstance(b, dict) and b.get("text"):
+                tt = str(b["text"]).strip()
+                if tt and tt not in tags:
+                    tags.append(tt)
+        for it in box.get("items") or []:
+            if isinstance(it, dict):
+                tt = (it.get("text") or "").strip()
+                if tt and tt not in tags:
+                    tags.append(tt)
 
     extra = {
         "offer_code": rec.get("offer_code"),
