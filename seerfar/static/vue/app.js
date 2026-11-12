@@ -628,7 +628,12 @@
       const heroBrand = computed(() => (content.value || {}).brand || ((product.value || {}).product || {}).brand || '');
       const heroPrice = computed(() => (content.value || {}).price || ((product.value || {}).product || {}).price);
       const heroSku = computed(() => (content.value || {}).sku || ((product.value || {}).product || {}).sku || '');
-      function onImgLoad(e) { if (e && e.target) e.target.classList.add('loaded'); }
+      const imgLoaded = reactive({});
+      function imgCls(u) { return 'phimg' + (imgLoaded[u] ? ' loaded' : ''); }
+      function onImgLoad(e) {
+        const s = e && e.target && (e.target.currentSrc || e.target.src);
+        if (s) imgLoaded[s] = true;
+      }
       const varChars = ref([]), varRows = ref([]), varTopRows = ref([]), varMeta = ref('');
       const simRows = ref([]), simMeta = ref('');
       const revKind = ref('stat'), revData = ref(null), revMeta = ref(''), revLang = ref('CN');
@@ -783,7 +788,7 @@
       return {
         nav, page, cfg, route, status, loading, rows, note, pageNo, pageMeta, viewMode,
         formEl, quickDays, activePreset, cats, thumbSize, setThumb,
-        tableWrap, hTrack, hOn, hThumbW, hThumbX, thumbDown, trackDown, onTableScroll, catFiltered, catSearch, catPanelOpen, selectedCats,
+        tableWrap, hTrack, hOn, hThumbW, hThumbX, thumbDown, trackDown, onTableScroll, imgCls, catFiltered, catSearch, catPanelOpen, selectedCats,
         product, content, contentLoading, rich, extraRows, drawerRich, drawerExtra,
         drawerOpen, drawerSku, drawerContent, drawerLoading,
         toastMsg, toastBad,
@@ -968,7 +973,7 @@
               <tr v-for="(r, i) in sortedRows" :key="i">
                 <td v-for="c in cfg.cols" :key="c[0]" :class="{num: typeof r[c[0]]==='number', 'num-tween': isTweening(r, c[0])}">
                   <template v-if="c[0]==='fav'"><button class="favbtn" :class="{on: r._fav}" @click="toggleFav(r)">{{ r._fav ? '★' : '☆' }}</button></template>
-                  <template v-else-if="c[0]==='img'"><img class="thumb phimg" :class="'sz-' + thumbSize" :src="r.image_url || r.img || ''" loading="lazy" @load="onImgLoad" v-if="r.image_url || r.img"></template>
+                  <template v-else-if="c[0]==='img'"><img :class="['thumb', 'sz-' + thumbSize, imgCls(r.image_url || r.img)]" :src="r.image_url || r.img || ''" loading="lazy" @load="onImgLoad" v-if="r.image_url || r.img"></template>
                   <template v-else-if="c[0]==='sku'"><a class="sku-link" href="javascript:;" @click="openDrawer(r.sku || r.id)">{{ r.sku || r.id }}</a></template>
                   <template v-else-if="c[0]==='link'"><a v-if="r.url || r.product_url" :href="r.url || r.product_url" target="_blank" rel="noopener">打开 ↗</a></template>
                   <template v-else-if="c[0]==='title' || c[0]==='dim' || c[0]==='seller' || c[0]==='brand'"><span class="ttl" :title="String(r[c[0]]||'')" :class="rateClass(r, c[0])">{{ cell(r, c[0]) }}</span></template>
@@ -980,7 +985,7 @@
         </div>
         <div class="cardgrid" v-else>
           <div class="pcard" v-for="(r, i) in rows" :key="i" @click="openDrawer(r.sku || r.id)">
-            <img class="c-img phimg" :src="r.image_url || r.img || ''" loading="lazy" @load="onImgLoad" v-if="r.image_url || r.img">
+            <img :class="['c-img', imgCls(r.image_url || r.img)]" :src="r.image_url || r.img || ''" loading="lazy" @load="onImgLoad" v-if="r.image_url || r.img">
             <div class="c-body">
               <div class="c-title">{{ r.title || r.query || r.sku }}</div>
               <div class="c-price" v-if="r.price != null">{{ money(r.price) }} ₽</div>
@@ -990,17 +995,12 @@
             <div class="c-foot"><span class="tiny">{{ r.seller || r.brand || '' }}</span><span class="score" v-if="r.opportunity != null">{{ fmt(r.opportunity) }}</span></div>
           </div>
         </div>
-        <div class="pager" v-if="rows.length">
-          <button class="btn ghost sm" @click="go(-1)" :disabled="pageNo<=1">← 上一页</button>
-          <span>第 {{ pageNo }} 页{{ pageMeta.pages ? ' / 共 ' + fmt(pageMeta.pages) + ' 页' : '' }}</span>
-          <button class="btn ghost sm" @click="go(1)" :disabled="pageMeta.pages ? pageNo >= pageMeta.pages : pageMeta.has_next_page === false">下一页 →</button>
-        </div>
       </section>
 
       <!-- 竞品详情 -->
       <template v-if="page.tool === 'product'">
         <section class="hero" v-if="heroImg">
-          <img class="hero-img phimg" :src="heroImg" :style="{ transform: 'translate3d(0,' + heroY + 'px,0) scale(1.12)' }" @load="onImgLoad" alt="">
+          <img :class="['hero-img', imgCls(heroImg)]" :src="heroImg" :style="{ transform: 'translate3d(0,' + heroY + 'px,0) scale(1.12)' }" @load="onImgLoad" alt="">
           <div class="hero-veil"></div>
           <div class="hero-actions">
             <button class="btn sm" v-if="heroSku" @click="openDrawer(heroSku)">快速查看</button>
@@ -1047,7 +1047,7 @@
             <div class="empty" style="color:var(--bad)" v-else-if="content.error">{{ content.error }}</div>
             <template v-else>
               <h4>图片（{{ (content.images||[]).length }}）</h4>
-              <div class="thumbs"><a v-for="u in (content.images||[]).slice(0,24)" :key="u" :href="u" target="_blank" rel="noopener"><img class="phimg" :src="u" loading="lazy" @load="onImgLoad"></a></div>
+              <div class="thumbs"><a v-for="u in (content.images||[]).slice(0,24)" :key="u" :href="u" target="_blank" rel="noopener"><img :class="imgCls(u)" :src="u" loading="lazy" @load="onImgLoad"></a></div>
               <div class="contenthead"><b>{{ content.title }}</b>
                 <span class="muted">{{ content.brand }}<template v-if="content.rating"> · ★{{ fmt(content.rating) }}</template><template v-if="content.review_count"> · {{ fmt(content.review_count) }} 条评论</template><template v-if="content.price"> · {{ money(content.price) }}₽</template></span>
               </div>
@@ -1221,11 +1221,16 @@
     </div>
   </div>
 
-  <!-- 表格横向浮动滚动条 -->
-  <div class="hscroll" :class="{on: hOn && viewMode==='table' && rows.length}">
-    <div class="hlabel">← 拖动横向浏览全部列 →</div>
-    <div class="hscroll-track" ref="hTrack" @pointerdown="trackDown">
-      <div class="hscroll-thumb" :style="{ width: hThumbW + 'px', transform: 'translateX(' + hThumbX + 'px)' }"
+  <!-- 底部常驻工具条：翻页 + 表格横向滚动 -->
+  <div class="bottombar" :class="{on: rows.length && page.tool !== 'product'}">
+    <div class="bb-page">
+      <button class="btn ghost sm" @click="go(-1)" :disabled="pageNo<=1">← 上一页</button>
+      <span class="bb-info">第 {{ pageNo }} 页<template v-if="pageMeta.pages"> / {{ fmt(pageMeta.pages) }}</template></span>
+      <button class="btn ghost sm" @click="go(1)"
+              :disabled="pageMeta.pages ? pageNo >= pageMeta.pages : pageMeta.has_next_page === false">下一页 →</button>
+    </div>
+    <div class="bb-track" v-show="hOn" ref="hTrack" @pointerdown="trackDown" title="拖动横向浏览全部列">
+      <div class="bb-thumb" :style="{ width: hThumbW + 'px', transform: 'translateX(' + hThumbX + 'px)' }"
            @pointerdown.stop="thumbDown"></div>
     </div>
   </div>
@@ -1240,7 +1245,7 @@
       <div class="empty" style="color:var(--bad)" v-else-if="drawerContent && drawerContent.error">{{ drawerContent.error }}</div>
       <template v-else-if="drawerContent">
         <h4>图片（{{ (drawerContent.images||[]).length }}）</h4>
-        <div class="thumbs"><a v-for="u in (drawerContent.images||[]).slice(0,24)" :key="u" :href="u" target="_blank" rel="noopener"><img class="phimg" :src="u" loading="lazy" @load="onImgLoad"></a></div>
+        <div class="thumbs"><a v-for="u in (drawerContent.images||[]).slice(0,24)" :key="u" :href="u" target="_blank" rel="noopener"><img :class="imgCls(u)" :src="u" loading="lazy" @load="onImgLoad"></a></div>
         <div class="contenthead"><b>{{ drawerContent.title }}</b>
           <span class="muted">{{ drawerContent.brand }}<template v-if="drawerContent.price"> · {{ money(drawerContent.price) }}₽</template></span></div>
         <h4>描述（{{ (drawerContent.description||'').length }} 字）</h4>
