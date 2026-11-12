@@ -499,6 +499,17 @@
         return out;
       });
       /* 搜索：走后端全库检索（10k 类目），而不是只过滤已加载的一级节点 */
+      /* 卡片视图展示的商品明细字段（与表格列同一套 key） */
+      const CARD_FIELDS = [
+        ['sales', '月销', 'num'], ['revenue', '月销额 ₽', 'money'],
+        ['gross_margin', '毛利率', 'pct'], ['drr', 'DRR', 'pct'],
+        ['review_count', '评论数', 'num'], ['review_rating', '评分', 'num'],
+        ['weight', '重量 g', 'num'], ['volume', '体积 L', 'num'],
+        ['length', '长 mm', 'num'], ['width', '宽 mm', 'num'], ['height', '高 mm', 'num'],
+        ['up_time_date', '上架', 'text'], ['variants', '变体数', 'num'],
+        ['seller_type_text', '卖家类型', 'text'], ['fulfillment_text', '配送', 'text'],
+        ['category_cn', '类目', 'text'], ['brand', '品牌', 'text'], ['seller', '店铺', 'text']
+      ];
       const catHits = ref([]), catSearching = ref(false);
       const autoIds = computed(() => new Set(selectedCats.value.filter(c => c.auto).map(c => c.id)));
       let catTimer = null;
@@ -879,7 +890,7 @@
       }
       return {
         nav, page, cfg, route, status, loading, rows, note, pageNo, pageMeta, viewMode,
-        formEl, quickDays, activePreset, cats, flatCat, selectedIds, displayList, catHits, catSearching, autoIds, parentPath,
+        formEl, quickDays, activePreset, cats, flatCat, selectedIds, displayList, catHits, catSearching, autoIds, parentPath, CARD_FIELDS,
         thumbSize, setThumb,
         tableWrap, hTrack, hOn, hThumbW, hThumbX, thumbDown, trackDown, onTableScroll, imgCls, catFiltered, catSearch, catPanelOpen, selectedCats,
         product, content, contentLoading, rich, extraRows, drawerRich, drawerExtra,
@@ -1054,8 +1065,18 @@
             <div class="c-body">
               <div class="c-title">{{ r.title || r.query || r.sku }}</div>
               <div class="c-price" v-if="r.price != null">{{ money(r.price) }} ₽</div>
-              <div class="c-sales" v-if="r.sales != null">月销 {{ fmt(r.sales) }}</div>
-              <div class="c-rate" v-if="r.review_rating != null">★ {{ fmt(r.review_rating) }} · {{ fmt(r.review_count) }} 评</div>
+              <div class="c-meta">
+                <template v-for="f in CARD_FIELDS" :key="f[0]">
+                  <div class="c-kv" v-if="r[f[0]] !== null && r[f[0]] !== undefined && r[f[0]] !== ''">
+                    <span class="c-k">{{ f[1] }}</span>
+                    <span class="c-v" :class="{num: f[2] !== 'text', txt: f[2] === 'text'}">
+                      {{ f[2] === 'money' ? money(r[f[0]])
+                         : f[2] === 'pct' ? fmt(r[f[0]]) + '%'
+                         : f[2] === 'num' ? fmt(r[f[0]]) : r[f[0]] }}
+                    </span>
+                  </div>
+                </template>
+              </div>
             </div>
             <div class="c-foot"><span class="tiny">{{ r.seller || r.brand || '' }}</span><span class="score" v-if="r.opportunity != null">{{ fmt(r.opportunity) }}</span></div>
           </div>

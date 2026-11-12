@@ -883,3 +883,21 @@ input[type=text],input[type=number],input[type=date],input:not([type]),select{he
 .card:hover .c-img{transform:scale(1.04)}
 .card{overflow:hidden}
 @media (max-width:640px){ .c-img{height:150px;padding:8px} }
+/* 卡片商品明细网格 */
+.c-body{display:flex;flex-direction:column;gap:6px}
+.c-meta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:2px 10px;margin-top:2px}
+.c-kv{display:flex;justify-content:space-between;gap:8px;font-size:11.5px;line-height:1.55;
+  border-bottom:1px dashed var(--line-2);padding-bottom:1px}
+.c-k{color:var(--muted);flex:none}
+.c-v{color:var(--ink);text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%}
+.c-v.num{font-variant-numeric:tabular-nums}
+.pcard{cursor:pointer}
+.pcard:hover .c-meta{border-color:var(--line)}
+/* 卡片明细：标签在上、数值在下，两列排布，避免挤压 */
+.c-meta{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 12px}
+.c-kv{flex-direction:column;align-items:flex-start;gap:0;border-bottom:none;padding-bottom:0}
+.c-k{font-size:10.5px;line-height:1.2}
+.c-v{text-align:left;max-width:100%;font-size:12px;font-weight:600;line-height:1.35}
+/* 卡片里类目/品牌/店铺等文本允许两行 */
+.c-v.txt{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
+  overflow:hidden;font-weight:600}
