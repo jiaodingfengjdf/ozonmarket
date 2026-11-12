@@ -66,6 +66,25 @@
     return j;
   }
 
+  window.__FMT = { fmt, money, esc };
+  const MiniTable = {
+    props: { cols: Array, rows: Array, empty: { type: String, default: '没有数据' } },
+    setup(props) {
+      const F = window.__FMT;
+      const isNum = v => typeof v === 'number';
+      return { F, isNum };
+    },
+    template: `<div class="tablewrap" v-if="rows && rows.length">
+      <table><thead><tr><th v-for="c in cols" :key="c[1]">{{ c[0] }}</th></tr></thead>
+      <tbody><tr v-for="(r,i) in rows" :key="i">
+        <td v-for="c in cols" :key="c[1]" :class="{num: isNum(r[c[1]])}">
+          <span v-if="c[2]==='money'">{{ F.money(r[c[1]]) }}</span>
+          <span v-else-if="c[2]==='pct'">{{ r[c[1]] == null ? '—' : F.fmt(r[c[1]]) + '%' }}</span>
+          <span v-else :class="{ttl: c[2]==='text'}" :title="String(r[c[1]]||'')">{{ r[c[1]] == null ? '—' : (isNum(r[c[1]]) ? F.fmt(r[c[1]]) : r[c[1]]) }}</span>
+        </td></tr></tbody></table></div>
+      <div class="empty" v-else>{{ empty }}</div>`
+  };
+
   const App = {
     setup() {
       const pages = SCHEMA.pages;
@@ -325,7 +344,8 @@
         try {
           const sku = row.sku || row.product_id || row.id;
           const j = await api('/api/favorites/toggle', { method: 'POST', body: { sku } });
-          row._fav = !!(j.data && j.data.fav);
+          row._fav = !!(j.data && j.data.favorite);
+          loadFavorites();
           toast(row._fav ? '已收藏' : '已取消收藏');
         } catch (e) { toast(e.message, true); }
       }
@@ -424,6 +444,7 @@
           if (Array.isArray(saved)) selectedCats.value = saved;
         } catch (e) { }
         loadCats(1).catch(() => { });
+        loadFavorites();
         nextTick(wireQuickdates);
       });
 
@@ -450,6 +471,183 @@
           .filter(([, v]) => v !== null && v !== undefined && v !== '');
       });
 
+      /* ===== 深水区：变体 / 评论 / 相似 / 店铺结构 / 利润 / 报告 / 收藏 ===== */
+      const VAR_COLS = [['SKU','sku','text'],['变体特征','variation_text','text'],['价格 ₽','price','money'],
+        ['月销量','sales'],['月销额 ₽','revenue','money'],['评论数','review_count'],['评分','review_rating'],['上架','up_time_date','text']];
+      const SIM_COLS = [['SKU','sku','text'],['标题','title','text'],['价格 ₽','price','money'],['月销量','sales'],
+        ['月销额 ₽','revenue','money'],['库存','stock'],['评论数','review_count'],['评分','review_rating'],
+        ['毛利率%','gross_margin','pct'],['卖家','seller','text']];
+      const BRAND_COLS = [['品牌','name','text'],['销售额 ₽','revenue','money'],['占本页%','page_share','pct'],
+        ['Top10份额%','sharing','pct'],['销量','sales'],['商品数','products'],['有销量商品','products_with_sales'],
+        ['均价 ₽','avg_price','money'],['均销','avg_sales'],['均评分','avg_rating'],['均评论','avg_reviews'],
+        ['卖家数','sellers'],['退货率%','return_rate','pct']];
+      const CAT_COLS = [['类目','cn_path','text'],['销售额 ₽','revenue','money'],['占本页%','page_share','pct'],
+        ['销量','sales'],['商品数','products'],['均价 ₽','avg_price','money'],['销额增长%','revenue_rate','pct'],['销量增长%','sales_rate','pct']];
+      const PROFIT_KEYS = ['cost_cny','rate_cny_rub','shipping_cny_per_kg','commission_pct','payment_pct',
+        'drr_pct','return_pct','target_margin_pct','volumetric_divisor'];
+      const PROFIT_DEFAULTS = { cost_cny:'', rate_cny_rub:12.5, shipping_cny_per_kg:35, commission_pct:15,
+        payment_pct:2, drr_pct:'', return_pct:0, target_margin_pct:20, volumetric_divisor:5000 };
+      const PROFIT_LABEL = { cost_cny:'采购价 CNY', rate_cny_rub:'汇率 CNY→₽', shipping_cny_per_kg:'头程 CNY/kg',
+        commission_pct:'佣金%', payment_pct:'支付/结算%', drr_pct:'广告 DRR%（留空=用商品自带）',
+        return_pct:'退货损耗%', target_margin_pct:'目标毛利%', volumetric_divisor:'体积重系数' };
+      const DIM_KEYS = ['advantages','disadvantages','usageScenarios','userCharacteristics','unmetNeeds',
+        'timePoints','usageLocations','userBehavior','purchaseMotivations'];
+      const DIM_LABEL = { advantages:'优点', disadvantages:'缺点', usageScenarios:'使用场景', userCharacteristics:'用户特征',
+        unmetNeeds:'未满足需求', timePoints:'使用时刻', usageLocations:'使用地点', userBehavior:'用户行为', purchaseMotivations:'购买动机' };
+
+      const STAR_PCT = { 5: 'fiveStarPercent', 4: 'fourStarPercent', 3: 'threeStarPercent', 2: 'twoStarPercent', 1: 'oneStarPercent' };
+      const STAR_CNT = { 5: 'fiveStarCount', 4: 'fourStarCount', 3: 'threeStarCount', 2: 'twoStarCount', 1: 'oneStarCount' };
+      const starPct = n => Number(((revData.value || {}).statistic || {})[STAR_PCT[n]] || 0);
+      const starCnt = n => ((revData.value || {}).statistic || {})[STAR_CNT[n]];
+      const varChars = ref([]), varRows = ref([]), varTopRows = ref([]), varMeta = ref('');
+      const simRows = ref([]), simMeta = ref('');
+      const revKind = ref('stat'), revData = ref(null), revMeta = ref(''), revLang = ref('CN');
+      const shopBrands = ref(null), shopCats = ref(null), shopBrandMeta = ref(''), shopCatMeta = ref('');
+      const profit = ref(Object.assign({}, PROFIT_DEFAULTS));
+      const profitOnly = ref(false), profitSummary = ref(null), profitMeta = ref('');
+      const favList = ref([]), favOpen = ref(false);
+
+      function formValue(key) {
+        const el = formEl.value && formEl.value.querySelector('[data-f="' + key + '"]');
+        return el ? String(el.value || '').trim() : '';
+      }
+      const curSku = () => formValue('sku');
+      const curShopId = () => formValue('id');
+
+      async function loadVarChars() {
+        const sku = curSku(); if (!sku) return toast('先填商品 SKU', true);
+        try {
+          const j = await api('/api/varchars?sku=' + encodeURIComponent(sku));
+          varChars.value = (j.data && j.data.rows) || [];
+          varMeta.value = '维度 ' + varChars.value.length + ' 个 · ' + (j.meta && j.meta.cached ? '缓存 0 积分' : '消耗 ' + (j.meta && j.meta.cost) + ' 积分');
+          refreshStatus();
+        } catch (e) { toast(e.message, true); }
+      }
+      async function loadVarList() {
+        const sku = curSku(); if (!sku) return toast('先填商品 SKU', true);
+        try {
+          const j = await api('/api/variations?sku=' + encodeURIComponent(sku) + '&size=50');
+          varRows.value = (j.data && j.data.rows) || [];
+          varTopRows.value = [];
+          varMeta.value = '变体 ' + varRows.value.length + ' 个 · 共 ' + fmt((j.data || {}).total) + ' · ' + (j.meta && j.meta.cached ? '缓存 0 积分' : '消耗 ' + (j.meta && j.meta.cost) + ' 积分');
+          refreshStatus();
+        } catch (e) { toast(e.message, true); }
+      }
+      async function loadVarTop(char) {
+        const sku = curSku(); if (!sku) return toast('先填商品 SKU', true);
+        try {
+          const j = await api('/api/vartop?sku=' + encodeURIComponent(sku) + '&characteristic=' + encodeURIComponent(char));
+          const d = j.data || {}, rev = d.revenues || [], sal = d.sales || [];
+          const map = new Map();
+          rev.forEach((x, i) => map.set(x.name, { name: x.name, rank: i + 1, revenue: x.quantity }));
+          sal.forEach((x, i) => { const o = map.get(x.name) || { name: x.name }; o.sales = x.quantity; o.salesRank = i + 1; map.set(x.name, o); });
+          varTopRows.value = [...map.values()].sort((a, b) => (a.rank || 99) - (b.rank || 99));
+          varMeta.value = '维度「' + esc(char) + '」Top' + varTopRows.value.length + ' · ' + (j.meta && j.meta.cached ? '缓存 0 积分' : '消耗 ' + (j.meta && j.meta.cost) + ' 积分');
+          await nextTick();
+          refreshStatus();
+        } catch (e) { toast(e.message, true); }
+      }
+      async function loadSimilar() {
+        const sku = curSku(); if (!sku) return toast('先填商品 SKU', true);
+        try {
+          const j = await api('/api/similar?sku=' + encodeURIComponent(sku));
+          simRows.value = (j.data && j.data.rows) || [];
+          simMeta.value = '相似 ' + simRows.value.length + ' 条（含目标商品）· ' + (j.meta && j.meta.cached ? '缓存 0 积分' : '消耗 ' + (j.meta && j.meta.cost) + ' 积分');
+          refreshStatus();
+        } catch (e) { toast(e.message, true); }
+      }
+      async function loadReview(kind) {
+        const sku = curSku(); if (!sku) return toast('先填商品 SKU', true);
+        revKind.value = kind;
+        try {
+          const j = await api('/api/reviews?sku=' + encodeURIComponent(sku) + '&type=' + kind + '&language=' + revLang.value);
+          revData.value = j.data || {};
+          const label = { stat: '星级分布', words: '词频', original: '原始评论', report: 'AI 报表' }[kind];
+          revMeta.value = label + ' · 语言 ' + revLang.value + ' · ' + (j.meta && j.meta.cached ? '缓存 0 积分' : '消耗 ' + (j.meta && j.meta.cost) + ' 积分');
+          refreshStatus();
+        } catch (e) { toast(e.message, true); }
+      }
+      async function createRevTask() {
+        const sku = curSku(); if (!sku) return toast('先填商品 SKU', true);
+        if (!confirm('创建评论分析任务：官方按 200 积分/SKU 计费。\n\nSKU ' + sku + ' · 语言 ' + revLang.value + '\n\n确认创建？')) return;
+        try {
+          const j = await api('/api/reviews/task', { method: 'POST', body: { skus: [sku], confirm: true } });
+          toast('任务已创建');
+          revMeta.value = '任务已提交，稍后查「AI 报表 / 词频」（同一 SKU 已创建过无需重复付费）';
+          refreshStatus();
+        } catch (e) { toast(e.message, true); }
+      }
+      async function loadShopBrands() {
+        const id = curShopId(); if (!id) return toast('先填店铺 ID', true);
+        try {
+          const j = await api('/api/shop/brands?id=' + encodeURIComponent(id) + '&size=50');
+          const d = j.data || {}, t = d.top || {};
+          shopBrands.value = { rows: d.rows || [], top: t };
+          shopBrandMeta.value = '品牌 ' + fmt(t.total) + ' · 店铺销额 ' + money(t.total_revenue) + '₽ · Top10 份额 ' +
+            (t.revenue_share_top10 == null ? '—' : fmt(t.revenue_share_top10) + '%') + ' · ' +
+            (j.meta && j.meta.cached ? '缓存 0 积分' : '消耗 ' + (j.meta && j.meta.cost) + ' 积分');
+          refreshStatus();
+        } catch (e) { toast(e.message, true); }
+      }
+      async function loadShopCats() {
+        const id = curShopId(); if (!id) return toast('先填店铺 ID', true);
+        try {
+          const j = await api('/api/shop/categories?id=' + encodeURIComponent(id) + '&size=50');
+          const d = j.data || {};
+          shopCats.value = { rows: d.rows || [], total: d.total };
+          shopCatMeta.value = '类目 ' + (d.rows || []).length + ' 行 · 共 ' + fmt(d.total) + ' · ' +
+            (j.meta && j.meta.cached ? '缓存 0 积分' : '消耗 ' + (j.meta && j.meta.cost) + ' 积分');
+          refreshStatus();
+        } catch (e) { toast(e.message, true); }
+      }
+      function profitParamsNow() {
+        const p = {};
+        PROFIT_KEYS.forEach(k => { const v = profit.value[k]; p[k] = (v === '' || v == null) ? null : Number(v); });
+        return p;
+      }
+      async function runProfit() {
+        if (!rows.value.length) return toast('先查询出商品', true);
+        try { localStorage.setItem('sf_profit', JSON.stringify(profit.value)); } catch (e) { }
+        const clean = rows.value.map(r => { const o = {}; for (const k in r) if (k !== 'raw' && k !== 'opportunity_parts') o[k] = r[k]; return o; });
+        try {
+          const j = await api('/api/profit', { method: 'POST', body: { rows: clean, params: profitParamsNow() } });
+          const d = j.data || {};
+          profitSummary.value = d.summary || null;
+          const list = d.rows || [];
+          rows.value = profitOnly.value ? list.filter(r => (Number(r.net_profit) || 0) > 0) : list;
+          profitMeta.value = '已计算 ' + list.length + ' 行 · 平均真毛利 ' +
+            (profitSummary.value && profitSummary.value.avg_net_margin != null ? fmt(profitSummary.value.avg_net_margin) + '%' : '—');
+          toast('利润已计算');
+        } catch (e) { toast(e.message, true); }
+      }
+      async function exportReport() {
+        if (!rows.value.length) return toast('先查询出商品', true);
+        const fav = await api('/api/favorites?limit=2000').catch(() => ({ data: { rows: [] } }));
+        const clean = rows.value.map(r => { const o = {}; for (const k in r) if (k !== 'raw' && k !== 'opportunity_parts') o[k] = r[k]; return o; });
+        const s = profitSummary.value || {};
+        const body = {
+          kind: 'report', rows: clean, favorites: ((fav.data || {}).rows || []),
+          filename: 'seerfar_report_' + new Date().toISOString().slice(0, 10),
+          meta: { '导出时间': new Date().toLocaleString('zh-CN'), '页面': page.value.tool,
+            '命中总数': pageMeta.value.total == null ? '' : pageMeta.value.total, '本表行数': clean.length,
+            '平均真毛利率%': s.avg_net_margin == null ? '' : s.avg_net_margin,
+            '平均净利₽': s.avg_net_profit == null ? '' : s.avg_net_profit,
+            '亏损行数': s.loss_rows == null ? '' : s.loss_rows }
+        };
+        if (['hotwords','mining','backsearch'].indexOf(page.value.tool) >= 0) { body.keywords = clean; body.rows = []; }
+        try {
+          const j = await api('/api/export', { method: 'POST', body });
+          const a = document.createElement('a'); a.href = j.data.url; a.download = j.data.file;
+          document.body.appendChild(a); a.click(); a.remove();
+          toast('报告已导出：' + j.data.file);
+        } catch (e) { toast(e.message, true); }
+      }
+      async function loadFavorites() {
+        try {
+          const j = await api('/api/favorites?limit=2000');
+          favList.value = (j.data && j.data.rows) || [];
+        } catch (e) { /* 增强功能 */ }
+      }
       return {
         nav, page, cfg, route, status, loading, rows, note, pageNo, pageMeta, viewMode,
         formEl, quickDays, activePreset, cats, catFiltered, catSearch, catPanelOpen, selectedCats,
@@ -457,7 +655,14 @@
         drawerOpen, drawerSku, drawerContent, drawerLoading,
         toastMsg, toastBad,
         fmt, money, esc, cell, rateClass, run, resetForm, exportXlsx, go, openDrawer, closeDrawer,
-        toggleFav, onPresetClick, applyPreset, toggleCatNode, toggleCat, loadContent, formClick, saveCats, refreshStatus
+        toggleFav, onPresetClick, applyPreset, toggleCatNode, toggleCat, loadContent, formClick, saveCats, refreshStatus,
+        // 深水区
+        VAR_COLS, SIM_COLS, BRAND_COLS, CAT_COLS, PROFIT_KEYS, PROFIT_LABEL, DIM_KEYS, DIM_LABEL,
+        varChars, varRows, varTopRows, varMeta, simRows, simMeta,
+        revKind, revData, revMeta, revLang, shopBrands, shopCats, shopBrandMeta, shopCatMeta,
+        profit, profitOnly, profitSummary, profitMeta, favList, favOpen, starPct, starCnt,
+        loadVarChars, loadVarList, loadVarTop, loadSimilar, loadReview, createRevTask,
+        loadShopBrands, loadShopCats, runProfit, exportReport, loadFavorites
       };
     },
 
@@ -479,7 +684,9 @@
       <div class="stat"><b>{{ fmt(status.products) }}</b><span>落库商品</span></div>
       <div class="stat" :class="{danger: status.fused}"><b>{{ status.fused ? '熔断' : '正常' }}</b><span>数据源</span></div>
     </div>
-    <div class="topactions"><button class="iconbtn" @click="refreshStatusSafe">刷新</button></div>
+    <div class="topactions">
+      <button class="iconbtn" @click="favOpen = !favOpen">收藏 {{ favList.length }}</button>
+      <button class="iconbtn" @click="refreshStatusSafe">刷新</button></div>
   </div>
 
   <div class="pagenav"><div class="pagenav-inner">
@@ -566,6 +773,25 @@
           </div>
         </div>
       </form>
+
+      <section class="filtercard" v-if="cfg.kind === 'products'">
+        <div class="fall">
+          <div class="field" v-for="k in PROFIT_KEYS" :key="k">
+            <label class="flab">{{ PROFIT_LABEL[k] }}</label>
+            <div class="fctl"><input type="number" step="any" v-model="profit[k]" :placeholder="String(PROFIT_DEFAULTS ? '' : '')"></div>
+          </div>
+        </div>
+        <div class="formfoot">
+          <div class="foot-left">
+            <label class="chk"><input type="checkbox" v-model="profitOnly"> 只看盈利</label>
+            <span class="tiny" v-html="profitMeta || '按「采购价 + 头程 + 佣金 + 广告 + 退货」重算净利/真毛利/保本价，本地计算 0 积分'"></span>
+          </div>
+          <div class="foot-right">
+            <button type="button" class="btn ghost" @click="exportReport">导出选品报告</button>
+            <button type="button" class="btn primary" @click="runProfit">计算利润</button>
+          </div>
+        </div>
+      </section>
 
       <section class="resultcard" v-if="page.tool !== 'product'">
         <div class="resulthead">
@@ -678,7 +904,151 @@
           </div>
         </section>
       </template>
+      <!-- 店铺结构 -->
+      <template v-if="page.tool === 'shop'">
+        <section class="resultcard">
+          <div class="resulthead">
+            <div class="resultr"><h3>品牌结构</h3><span class="badge solid" v-if="shopBrands">{{ (shopBrands.rows||[]).length }}</span></div>
+            <div class="resultbar-actions"><button class="btn ghost sm" @click="loadShopBrands">查店铺品牌</button></div>
+          </div>
+          <div class="statusline" v-html="shopBrandMeta || '品牌集中度、Top10 份额、各品牌均价与评分（约 10 积分/次）'"></div>
+          <div class="contentblock"><mini-table :cols="BRAND_COLS" :rows="shopBrands ? shopBrands.rows : []" empty="该店铺没有品牌数据（或接口无权限）"></mini-table></div>
+        </section>
+        <section class="resultcard">
+          <div class="resulthead">
+            <div class="resultr"><h3>类目结构</h3><span class="badge solid" v-if="shopCats">{{ (shopCats.rows||[]).length }}</span></div>
+            <div class="resultbar-actions"><button class="btn ghost sm" @click="loadShopCats">查店铺类目</button></div>
+          </div>
+          <div class="statusline" v-html="shopCatMeta || '该店铺在各三级类目的销额/销量/商品数/均价（约 10 积分/次）'"></div>
+          <div class="contentblock"><mini-table :cols="CAT_COLS" :rows="shopCats ? shopCats.rows : []" empty="该店铺没有类目数据"></mini-table></div>
+        </section>
+      </template>
+
+      <!-- 变体 / 评论 / 相似（竞品详情页） -->
+      <template v-if="page.tool === 'product'">
+        <section class="resultcard">
+          <div class="resulthead">
+            <div class="resultr"><h3>变体分析</h3>
+              <span class="badge solid">{{ varRows.length || varTopRows.length }}</span></div>
+            <div class="resultbar-actions">
+              <button class="btn ghost sm" @click="loadVarChars">特征维度</button>
+              <button class="btn ghost sm" @click="loadVarList">变体列表</button>
+            </div>
+          </div>
+          <div class="statusline" v-html="varMeta || '先点「特征维度」，再点某个维度看 Top10（每次约 10 积分）'"></div>
+          <div class="contentblock">
+            <div class="wchips" v-if="varChars.length">
+              <button class="chipbtn" v-for="c in varChars" :key="c.sourceName" @click="loadVarTop(c.sourceName)">
+                {{ c.name || c.sourceName }}<i>{{ c.sourceName }}</i>
+              </button>
+            </div>
+            <mini-table v-if="varRows.length" :cols="VAR_COLS" :rows="varRows" empty="没有变体数据"></mini-table>
+            <div class="tablewrap" v-if="varTopRows.length">
+              <table><thead><tr><th>变体值</th><th>销售额排名</th><th>销量排名</th></tr></thead>
+                <tbody><tr v-for="r in varTopRows" :key="r.name">
+                  <td class="ttl">{{ r.name }}</td><td class="num">{{ r.rank || '—' }}</td><td class="num">{{ r.salesRank || '—' }}</td>
+                </tr></tbody></table>
+            </div>
+          </div>
+        </section>
+
+        <section class="resultcard">
+          <div class="resulthead">
+            <div class="resultr"><h3>评论分析</h3><span class="muted">{{ revLang }}</span></div>
+            <div class="resultbar-actions">
+              <select class="insm" v-model="revLang"><option value="CN">中文</option><option value="EN">英文</option><option value="RU">俄文</option></select>
+              <button class="btn ghost sm" @click="loadReview('stat')">星级分布</button>
+              <button class="btn ghost sm" @click="loadReview('words')">词频</button>
+              <button class="btn ghost sm" @click="loadReview('original')">原始评论</button>
+              <button class="btn ghost sm" @click="loadReview('report')">AI 报表</button>
+              <button class="btn ghost sm" @click="createRevTask">创建任务(200分)</button>
+            </div>
+          </div>
+          <div class="statusline" v-html="revMeta || '报表/词频需先创建分析任务（200 积分/SKU），任务完成后再查'"></div>
+          <div class="contentblock">
+            <div class="empty" v-if="!revData">选择上面任一视图查看</div>
+            <template v-else-if="revKind==='stat'">
+              <div class="empty" v-if="!(revData.statistic && revData.statistic.reviewCount != null)">还没有该 SKU 的评论统计（可能未创建分析任务）</div>
+              <template v-else>
+                <div class="card-grid" style="padding-left:0;padding-right:0">
+                  <div class="card"><b>{{ fmt(revData.statistic.reviewCount) }}</b><span>评论总数</span></div>
+                  <div class="card"><b>{{ fmt(revData.statistic.averageRating) }}</b><span>平均评分</span></div>
+                </div>
+                <div class="barrow" v-for="n in [5,4,3,2,1]" :key="n">
+                  <span class="barlab">{{ n }}★</span>
+                  <span class="bar"><i :style="{width: Math.min(100, starPct(n)) + '%'}"></i></span>
+                  <span class="barval">{{ fmt(starCnt(n)) }} · {{ fmt(starPct(n)) }}%</span>
+                </div>
+              </template>
+            </template>
+            <template v-else-if="revKind==='words'">
+              <template v-if="(revData.sinicized||[]).length || (revData.origin||[]).length">
+                <h4 v-if="(revData.sinicized||[]).length">中文词频（{{ revData.sinicized.length }}）</h4>
+                <div class="wchips" v-if="(revData.sinicized||[]).length"><span class="wchip" v-for="w in revData.sinicized.slice(0,150)" :key="w">{{ w }}</span></div>
+                <h4 v-if="(revData.origin||[]).length">原文词频（{{ revData.origin.length }}）</h4>
+                <div class="wchips" v-if="(revData.origin||[]).length"><span class="wchip" v-for="w in revData.origin.slice(0,150)" :key="w">{{ w }}</span></div>
+              </template>
+              <div class="empty" v-else>没有词频数据（需先创建分析任务）</div>
+            </template>
+            <template v-else-if="revKind==='original'">
+              <div class="empty" v-if="!(revData.rows||[]).length">没有原始评论</div>
+              <div class="revlist" v-else>
+                <div class="revitem" v-for="(r,i) in revData.rows.slice(0,60)" :key="i">
+                  <div class="revhead"><b>{{ '★'.repeat(Math.max(0, Math.min(5, Number(r.star)||0))) }}</b>
+                    <span class="muted">{{ r.date || r.ruDate || '' }} · {{ r.author || '匿名' }}<template v-if="r.skus"> · SKU {{ r.skus }}</template></span></div>
+                  <div class="revtext">{{ r.text || '（无正文）' }}</div>
+                  <div class="revphotos" v-if="(r.photos||[]).length"><img v-for="u in r.photos.slice(0,6)" :key="u" :src="u" loading="lazy"></div>
+                </div>
+              </div>
+            </template>
+            <template v-else>
+              <template v-if="DIM_KEYS.some(k => (revData[k]||[]).length) || revData.optSugges || revData.qaAnalysis">
+                <template v-for="k in DIM_KEYS" :key="k">
+                  <template v-if="(revData[k]||[]).length">
+                    <h4>{{ DIM_LABEL[k] }}（{{ revData[k].length }}）</h4>
+                    <div class="wchips"><span class="wchip" v-for="(x,i) in revData[k]" :key="i">
+                      {{ x.dimensionCn || x.dimensionRu || '' }}<template v-if="x.count != null"> · {{ fmt(x.count) }}条</template>
+                      <template v-if="x.proportion != null"> · {{ (Number(x.proportion) * (Number(x.proportion) <= 1 ? 100 : 1)).toFixed(1) }}%</template>
+                    </span></div>
+                  </template>
+                </template>
+                <template v-if="revData.optSugges"><h4>运营建议</h4>
+                  <div class="attrgrid"><template v-for="(v,k) in revData.optSugges" :key="k">
+                    <div class="akey">{{ k }}</div><div class="aval">{{ v }}</div></template></div></template>
+                <template v-if="revData.qaAnalysis"><h4>问答分析</h4>
+                  <div class="attrgrid"><template v-for="(v,k) in revData.qaAnalysis" :key="k">
+                    <div class="akey">{{ k }}</div><div class="aval">{{ v }}</div></template></div></template>
+              </template>
+              <div class="empty" v-else>没有报表数据（需先创建分析任务，再回来查报表）</div>
+            </template>
+          </div>
+        </section>
+
+        <section class="resultcard">
+          <div class="resulthead">
+            <div class="resultr"><h3>相似商品</h3><span class="badge solid">{{ simRows.length }}</span></div>
+            <div class="resultbar-actions"><button class="btn ghost sm" @click="loadSimilar">查相似</button></div>
+          </div>
+          <div class="statusline" v-html="simMeta || '官方最多返回 21 条（含目标商品），带库存（约 10 积分/次）'"></div>
+          <div class="contentblock"><mini-table :cols="SIM_COLS" :rows="simRows" empty="没有相似商品"></mini-table></div>
+        </section>
+      </template>
     </main>
+  </div>
+
+  <!-- 收藏面板 -->
+  <div class="drawer" :class="{open: favOpen}" v-show="favOpen" style="width:min(460px,96vw)">
+    <div class="drawer-head"><span>收藏（{{ favList.length }}）</span><button @click="favOpen = false">×</button></div>
+    <div class="drawer-body">
+      <div class="empty" v-if="!favList.length">还没有收藏。表格里点 ☆ 即可收藏。</div>
+      <div class="revlist" v-else>
+        <div class="revitem" v-for="f in favList" :key="f.sku" style="cursor:pointer" @click="openDrawer(f.sku)">
+          <div class="revhead"><b>{{ f.title || f.sku }}</b></div>
+          <div class="tiny">SKU {{ f.sku }}<template v-if="f.price"> · {{ money(f.price) }}₽</template>
+            <template v-if="f.seller"> · {{ f.seller }}</template></div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- 抽屉：仅 0 积分内容 -->
@@ -726,5 +1096,7 @@
     };
   })(App.setup);
 
-  createApp(App).mount('#app');
+  const _app = createApp(App);
+  _app.component('mini-table', MiniTable);
+  _app.mount('#app');
 })();
