@@ -119,6 +119,47 @@ def _page(page=1, size=20, field="revenue", direction="DESC", allowed=None):
             "orders": [{"field": field, "direction": direction}]}
 
 
+def _pages_of(f: dict, hard_max=10) -> int:
+    """本次请求要抓多少页（1~10）。官方单页上限 100 条，多页会按页计费。"""
+    try:
+        n = int(f.get("pages") or 1)
+    except (TypeError, ValueError):
+        n = 1
+    return max(1, min(hard_max, n))
+
+
+# 评论接口的分析语言是枚举 CN/EN/RU，不是语言代码（文档明确「不是 zh-CN 等语言代码」）
+LANG_ENUM = {
+    "cn": "CN", "zh": "CN", "zh-cn": "CN", "zh_cn": "CN", "chinese": "CN",
+    "en": "EN", "en-us": "EN", "en_us": "EN", "english": "EN",
+    "ru": "RU", "ru-ru": "RU", "ru_ru": "RU", "russian": "RU",
+}
+
+
+def lang_enum(v) -> str:
+    return LANG_ENUM.get(str(v or "").strip().lower(), "CN")
+
+
+def _sku_int(v):
+    """评论接口要求 sku 为 integer（64 位内），这里做严格数字校验。"""
+    s = str(v or "").strip()
+    if not s.isdigit():
+        raise ValueError(f"SKU 必须是纯数字：{v!r}")
+    return int(s)
+
+
+def _ids_list(v, limit=None) -> list[str]:
+    """ID 列表参数：兼容数组、逗号串、单个值，去重保序。"""
+    if v is None:
+        return []
+    if isinstance(v, (list, tuple, set)):
+        items = [str(x).strip() for x in v]
+    else:
+        items = [x.strip() for x in re.split(r"[,，\s]+", str(v))]
+    out = list(dict.fromkeys(x for x in items if x))
+    return out[:limit] if limit else out
+
+
 def _fmt_ts(v, fmt="%Y-%m-%d"):
     """毫秒时间戳 → 日期字符串（上架时间等）。"""
     f = num(v)
@@ -328,12 +369,23 @@ class Selector:
         if f.get("tag"):
             body["tag"] = str(f["tag"])
 
-        res = self.c.call("top", body, force=force)
-        d = res.data or {}
-        records = d.get("records") or []
-        rows = [norm_product(r) for r in records if isinstance(r, dict)]
+        # —— 多页抓取（pages>1 时逐页请求；命中缓存不重复扣费）——
+        want_pages = _pages_of(f)
+        rows, cost, fetched, d, res = [], 0.0, 0, {}, None
+        for pno in range(1, want_pages + 1):
+            body["page"]["pageNumber"] = pno
+            res = self.c.call("top", body, force=force)
+            d = res.data or {}
+            recs = d.get("records") or []
+            cost += res.cost
+            fetched = pno
+            rows.extend(norm_product(r) for r in recs if isinstance(r, dict))
+            total_pages = int(d.get("totalPages") or 1)
+            if pno >= total_pages or not recs:
+                break
 
         # —— 结果侧本地过滤：官方没有对应筛选参数，但响应里有该字段 ——
+        # 注意：这里只作用于「本次已抓取的行」，不是全站。返回 local_filter 让前端如实提示。
         def keep(r):
             st = f.get("seller_type")
             if st not in (None, "", "all") and r.get("seller_type") is not None:
@@ -360,9 +412,21 @@ class Selector:
             r["opportunity"] = o["score"]
             r["opportunity_parts"] = o["parts"]
         self.db.upsert_products(rows)
+        # 哪些条件是「本地过滤」（官方无对应参数），供前端如实标注作用范围
+        local_fields = []
+        if str(f.get("seller_type") or "").strip() not in ("", "all"):
+            local_fields.append("店铺类型")
+        if str(f.get("cross_border") or "").strip() not in ("", "all"):
+            local_fields.append("跨境可售")
+        if f.get("up_time_from") or f.get("up_time_to"):
+            local_fields.append("上架日期区间")
+        scope = f"本页（{fetched} 页合计 {before} 行）"
         return {"rows": rows, "total": d.get("total"), "page": d.get("current"),
-                "pages": d.get("totalPages"), "cached": res.cached,
-                "cost": res.cost, "filtered_out": filtered_out,
+                "pages": d.get("totalPages"), "cached": res.cached if res else False,
+                "cost": round(cost, 1), "filtered_out": filtered_out,
+                "fetched_pages": fetched,
+                "local_filter": {"fields": local_fields, "filtered_out": filtered_out,
+                                 "scope": scope, "before": before},
                 "applied": {k: v for k, v in body.items() if k not in ("page",)},
                 "time_interval": d.get("timeInterval"), "raw": d}
 
@@ -410,14 +474,23 @@ class Selector:
         if brands or btype not in (None, ""):
             body["brand"] = {"type": int(btype or 0), "brandName": brands}
 
-        res = self.c.call("category", body, force=force)
-        d = res.data or {}
-        # 注意：查类目接口的 data.products 是「商品总数」整数，商品数组只在 productList。
-        # 查店铺接口的 data.products 才是数组，两者不能混用。
-        records = d.get("productList") or []
-        if not isinstance(records, list):
-            records = []
-        rows = [norm_product(r) for r in records if isinstance(r, dict)]
+        # —— 多页抓取：该接口用 hasNextPage 表示还有没有下一页 ——
+        want_pages = _pages_of(f)
+        rows, cost, fetched, d, res = [], 0.0, 0, {}, None
+        for pno in range(1, want_pages + 1):
+            body["page"]["pageNumber"] = pno
+            res = self.c.call("category", body, force=force)
+            d = res.data or {}
+            cost += res.cost
+            fetched = pno
+            # 注意：查类目接口的 data.products 是「商品总数」整数，商品数组只在 productList。
+            # 查店铺接口的 data.products 才是数组，两者不能混用。
+            records = d.get("productList") or []
+            if not isinstance(records, list):
+                records = []
+            rows.extend(norm_product(r) for r in records if isinstance(r, dict))
+            if not records or not d.get("hasNextPage"):
+                break
         for r in rows:
             r["opportunity"] = opportunity(r, "product")["score"]
         self.db.upsert_products(rows)
@@ -448,19 +521,31 @@ class Selector:
             if not rows:
                 hint = (f"该类目是汇总层级，官方只返回大盘指标；已找到其下 {len(leaves)} 个"
                         f"三级子类目，在上方下拉里选一个即可查看商品清单、销量与排名。")
-        return {"overview": overview, "rows": rows, "cached": res.cached,
-                "cost": res.cost, "hint": hint, "leaves": leaves, "raw": d}
+        return {"overview": overview, "rows": rows, "cached": res.cached if res else False,
+                "cost": round(cost, 1), "fetched_pages": fetched,
+                "has_next_page": d.get("hasNextPage"),
+                "hint": hint, "leaves": leaves, "raw": d}
 
     # ---------- 关键词三条线 ----------
-    def _keyword_call(self, name, body, kind, force=False):
-        res = self.c.call(name, body, force=force)
-        d = res.data or {}
-        rows = [norm_keyword(r, kind) for r in (d.get("records") or [])]
+    def _keyword_call(self, name, body, kind, force=False, pages=1):
+        rows, cost, fetched, d, res = [], 0.0, 0, {}, None
+        for pno in range(1, pages + 1):
+            body["page"]["pageNumber"] = pno
+            res = self.c.call(name, body, force=force)
+            d = res.data or {}
+            cost += res.cost
+            fetched = pno
+            recs = d.get("records") or []
+            rows.extend(norm_keyword(r, kind) for r in recs)
+            total_pages = int(d.get("totalPages") or 1)
+            if pno >= total_pages or not recs:
+                break
         for r in rows:
             r["opportunity"] = opportunity(r, "keyword")["score"]
         self.db.upsert_keywords(rows, kind)
         return {"rows": rows, "total": d.get("total"), "page": d.get("current"),
-                "pages": d.get("totalPages"), "cached": res.cached, "cost": res.cost}
+                "pages": d.get("totalPages"), "cached": res.cached if res else False,
+                "cost": round(cost, 1), "fetched_pages": fetched}
 
     def hot_words(self, f: dict | None = None, *, force=False) -> dict:
         f = f or {}
@@ -472,16 +557,16 @@ class Selector:
             v = _range(f, k)
             if v:
                 body[k] = v
-        if f.get("categories") or f.get("category_id"):
-            body["categories"] = [str(x) for x in (f.get("categories") or
-                                                   [f.get("category_id")]) if x]
+        cats = _ids_list(f.get("categories") or f.get("category_ids") or f.get("category_id"))
+        if cats:
+            body["categories"] = cats[:20]
         if f.get("keywords"):
             body["keywords"] = list(f["keywords"])
         elif f.get("keyword"):
             body["keywords"] = [f["keyword"]]
         if f.get("search_date"):
             body["searchDate"] = f["search_date"]
-        return self._keyword_call("market", body, "market", force)
+        return self._keyword_call("market", body, "market", force, _pages_of(f))
 
     def mining(self, keyword: str, f: dict | None = None, *, force=False) -> dict:
         f = f or {}
@@ -497,16 +582,27 @@ class Selector:
         for k in ("include_keywords", "exclude_keywords"):
             if f.get(k):
                 body["includeKeywords" if k == "include_keywords" else "excludeKeywords"] = list(f[k])
-        return self._keyword_call("mining", body, "mining", force)
+        return self._keyword_call("mining", body, "mining", force, _pages_of(f))
 
     def backsearch(self, sku_ids, f: dict | None = None, *, force=False) -> dict:
         f = f or {}
-        body = {"skuIds": [str(x) for x in sku_ids],
+        ids = _ids_list(sku_ids)
+        if not ids:
+            raise ValueError("关键词反查至少需要 1 个竞品 SKU")
+        if len(ids) > 20:
+            raise ValueError(f"关键词反查单次最多 20 个 SKU，当前传入 {len(ids)} 个")
+        body = {"skuIds": ids,
                 "hasVariant": int(f.get("has_variant") or 0),
                 "page": _page(f.get("page"), f.get("size"),
                              f.get("sort") or "exposure",
                              f.get("direction") or "DESC", SORT_FIELDS["backsearch"]),
                 "matchType": int(f.get("match_type") or 0)}
+        # 文档：type 传字符串数组，0=自然搜索词 1=广告搜索词，不传则不筛选
+        types = _ids_list(f.get("types") or f.get("type"))
+        if types:
+            body["type"] = [str(x) for x in types if str(x) in ("0", "1")][:2]
+            if not body["type"]:
+                body.pop("type")
         for k in ("uniqQueriesWCa", "ca", "searchVolume", "searchChange30",
                   "naturalRank", "adRank", "titleDensity", "wordCount", "products",
                   "adRivalCount", "productViews", "conversionSharing", "sellers",
@@ -517,7 +613,9 @@ class Selector:
         for k in ("include_keywords", "exclude_keywords"):
             if f.get(k):
                 body["includeKeywords" if k == "include_keywords" else "excludeKeywords"] = list(f[k])
-        return self._keyword_call("backsearch", body, "backsearch", force)
+        r = self._keyword_call("backsearch", body, "backsearch", force, _pages_of(f))
+        r["sku_ids"] = ids
+        return r
 
     # ---------- 商品 / 变体 / 店铺 ----------
     def product(self, sku: str, date_range="past_30_days", *, with_trend=True,
@@ -578,19 +676,48 @@ class Selector:
     def shop(self, shop_id, f=None, *, force=False):
         f = f or {}
         body = {"id": int(shop_id),
+                "filterRemoveProduct": False if f.get("include_removed") else True,
                 "page": _page(f.get("page"), f.get("size"), f.get("sort") or "revenue",
                               f.get("direction") or "DESC", SORT_FIELDS["top"])}
         for k in COMMON_RANGES:
             v = _range(f, k)
             if v:
                 body[k] = v
+        # —— 严格对齐官方「Ozon 查店铺」Body 参数表（之前界面有、后端没发）——
         if f.get("category_ids"):
-            body["categoryIds"] = [str(x) for x in f["category_ids"]]
+            body["categoryIds"] = _ids_list(f["category_ids"])[:20]
         if f.get("skus"):
-            body["skus"] = [str(x) for x in f["skus"]][:10]
-        r = self.c.call("shop", body, force=force)
-        d = r.data or {}
-        rows = [norm_product(x) for x in (d.get("products") or [])]
+            body["skus"] = _ids_list(f["skus"])[:10]
+        if f.get("keywords"):
+            body["keywords"] = _ids_list(f["keywords"])
+        if f.get("tag"):
+            body["tag"] = str(f["tag"])
+        if f.get("fulfillment"):
+            # 查店铺接口这里与榜单一致，是「数组」
+            body["fulfillment"] = _ids_list(f["fulfillment"])
+        if f.get("labels") not in (None, "", []):
+            body["labels"] = [int(x) for x in _ids_list(f["labels"]) if str(x).isdigit()]
+        if f.get("creation_date") not in (None, "", 0):
+            body["creationDate"] = int(f["creation_date"])
+        brands = _ids_list(f.get("brands") or f.get("brand"))
+        btype = f.get("brand_type")
+        if brands or btype not in (None, ""):
+            body["brand"] = {"type": int(btype or 0), "brandName": brands}
+
+        want_pages = _pages_of(f)
+        rows, cost, fetched, d, r = [], 0.0, 0, {}, None
+        for pno in range(1, want_pages + 1):
+            body["page"]["pageNumber"] = pno
+            r = self.c.call("shop", body, force=force)
+            d = r.data or {}
+            cost += r.cost
+            fetched = pno
+            prods = d.get("products") or []
+            rows.extend(norm_product(x) for x in prods)
+            if not prods or not d.get("hasNextPage"):
+                break
+        for x in rows:
+            x["opportunity"] = opportunity(x, "product")["score"]
         self.db.upsert_products(rows)
         self.db.upsert_shop({"id": str(shop_id), "name": "",
                              "rating": d.get("rating"),
@@ -600,7 +727,10 @@ class Selector:
         return {"summary": {k: d.get(k) for k in
                             ("productCount", "rating", "totalRevenue", "totalSales",
                              "dailySales", "fulfillment", "hasNextPage")},
-                "rows": rows, "cached": r.cached, "cost": r.cost}
+                "rows": rows, "cached": r.cached if r else False,
+                "cost": round(cost, 1), "fetched_pages": fetched,
+                "has_next_page": d.get("hasNextPage"),
+                "applied": {k: v for k, v in body.items() if k != "page"}}
 
     def shop_brands(self, shop_id, page=1, size=20):
         r = self.c.call("shop_brand", {"id": int(shop_id),
@@ -623,13 +753,14 @@ class Selector:
         r = self.c.call("review_original", {"sku": str(sku)})
         return {"rows": (r.data or {}).get("reviews") or [], "cached": r.cached}
 
-    def review_words(self, sku, language="zh-CN"):
-        r = self.c.call("review_words", {"sku": str(sku), "language": language})
-        return {"rows": r.data or {}, "cached": r.cached}
+    def review_words(self, sku, language="CN"):
+        # 文档：sku 为 integer；language 为枚举 CN/EN/RU（不是 zh-CN）
+        r = self.c.call("review_words", {"sku": _sku_int(sku), "language": lang_enum(language)})
+        return {"rows": r.data or {}, "language": lang_enum(language), "cached": r.cached}
 
-    def review_report(self, sku, language="zh-CN"):
-        r = self.c.call("review_report", {"sku": str(sku), "language": language})
-        return {"rows": r.data or {}, "cached": r.cached}
+    def review_report(self, sku, language="CN"):
+        r = self.c.call("review_report", {"sku": _sku_int(sku), "language": lang_enum(language)})
+        return {"rows": r.data or {}, "language": lang_enum(language), "cached": r.cached}
 
     def review_task(self, skus, *, confirm=False):
         """创建评论分析任务：官方单价 200 积分/SKU，默认拒绝，必须 confirm=True。"""

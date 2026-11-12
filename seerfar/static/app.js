@@ -32,6 +32,20 @@ const RESULT_COLS = [
 const PCT_KEYS = new Set(['discount', 'gross_margin', 'return_cancellation_rate',
   'conv_to_cart_search', 'conv_to_cart_pdp', 'conv_view_to_order',
   'order_conversion_rate', 'drr', 'promo_revenue_share']);
+/* 表格列 → 官方排序字段：能映射的走服务端排序（全量），映射不到的只排当前已加载行 */
+const SORTMAP = {
+  price: 'price', sales: 'sales', revenue: 'revenue', review_count: 'reviewCount',
+  review_rating: 'reviewRating', gross_margin: 'grossMargin', views: 'views',
+  session_count_search: 'sessionCountSearch', session_count: 'sessionCount',
+  conv_to_cart_pdp: 'convToCartPdp', order_conversion_rate: 'orderConversionRate',
+  drr: 'drr', return_cancellation_rate: 'returnCancellationRate', variants: 'variants',
+  weight: 'weight', volume: 'volume', qa: 'questionsAndAnswers', up_time_date: 'upTime',
+  search_volume: 'searchVolume', growth30: 'count30GrowthRate', avg_price: 'avgPrice',
+  competing_products: 'competingProducts', sellers: 'sellers', market_space: 'marketSpace',
+  conversion_sharing: 'conversionSharing', title_density: 'titleDensity',
+  word_count: 'wordCount', relevancy: 'relevancy', exposure: 'exposure',
+  conversion: 'conversion', natural_rank: 'naturalRank', ad_rank: 'adRank'
+};
 const KEYWORD_COLS = [
   ['query', '关键词'], ['query_cn', '中文'], ['search_volume', '月搜索量'],
   ['growth30', '30天增长'], ['competing_products', '竞品数'], ['sellers', '卖家数'],
@@ -61,7 +75,8 @@ const TOOL_CFG = {
 const state = {
   rows: [], page: {}, selectedCats: new Set(), catNames: new Map(),
   catsExpanded: false, quickDays: 0, tool: document.body.dataset.page || 'select', lastApplied: null,
-  viewMode: localStorage.getItem('sf_view') || 'table', lastCols: null
+  viewMode: localStorage.getItem('sf_view') || 'table', lastCols: null,
+  sortDir: 'desc', lastPageInfo: null, autoConfirm: false
 };
 
 /* 已选类目跨页面保留（sessionStorage） */
@@ -83,6 +98,21 @@ async function api(path, opts = {}) {
   if (!j.ok) { const e = new Error(j.error || '请求失败'); e.type = j.type; throw e; }
   return j;
 }
+/* POST：后端要求二次确认（多页按页计费）时，弹一次确认再带 confirm 重发 */
+async function postTool(path, body) {
+  let j = await api(path, { method: 'POST', body });
+  if (j.data && j.data.need_confirm && !state.autoConfirm) {
+    const d = j.data;
+    const est = d.estimated_credit != null ? d.estimated_credit : '?';
+    if (!confirm(`${d.tip || '该操作会消耗积分'}（预估 ${est} 积分）\n\n确认继续？`)) {
+      const e = new Error('已取消（原预估 ' + est + ' 积分）');
+      e.cancelled = true; throw e;
+    }
+    j = await api(path, { method: 'POST', body: Object.assign({}, body, { confirm: true }) });
+  }
+  return j;
+}
+
 let toastTimer;
 function toast(msg, bad = false) {
   const t = $('#toast');
@@ -269,10 +299,19 @@ function collectForm(tool) {
   const form = $(`form[data-tool="${tool}"]`);
   const f = {};
   if (!form) return f;
+  // 同名字段的复选框（如「词类型」自然/广告）需要收集成数组，不能只留最后一个
+  const cbCount = {};
+  $$('[data-f]', form).forEach(el => {
+    if (el.type === 'checkbox' && el.dataset.f) cbCount[el.dataset.f] = (cbCount[el.dataset.f] || 0) + 1;
+  });
   $$('[data-f]', form).forEach(el => {
     const k = el.dataset.f; let v;
     if (el.type === 'radio') { if (!el.checked) return; v = el.value; }
-    else if (el.type === 'checkbox') { if (!el.checked) return; v = true; }
+    else if (el.type === 'checkbox') {
+      if (!el.checked) return;
+      if (cbCount[k] > 1) { (f[k] = f[k] || []).push(el.value); return; }
+      v = true;
+    }
     else v = el.value.trim();
     if (v === '' || v === false) return;
     if (el.type === 'number' && v !== '') v = Number(v);
@@ -311,6 +350,10 @@ function collectForm(tool) {
   if (tool === 'category' && !f.category_id && state.selectedCats.size) {
     f.category_id = [...state.selectedCats][0];
   }
+  // 市场热词接口的类目参数叫 categories（之前这里的勾选没送到后端，等于白勾）
+  if (tool === 'hotwords' && state.selectedCats.size) {
+    f.categories = [...state.selectedCats].slice(0, 20);
+  }
   return f;
 }
 
@@ -337,6 +380,7 @@ const LAB = {
   include_keywords: '包含词', exclude_keywords: '排除词', category_ids: '类目',
   fulfillment: '配送', labels: '标签', creation_date: '上架时间', search_date: '历史月',
   match_type: '匹配', has_variant: '剔除变体', date: '月份', tag: '标签词', sku: 'SKU',
+  types: '词类型',
   date_range: '区间', cross_border: '跨境', seller_type: '店铺类型', include_removed: '含下架',
   variations_merge: '变体合并', category_id: '类目ID', id: '店铺ID', limit: '条数'
 };
@@ -353,6 +397,7 @@ function renderAppliedTags(tool) {
     if (k === 'seller_type') text = '店铺 ' + (v === '0' ? '本土' : '跨境');
     if (k === 'labels') text = Array.isArray(v) ? (v.map(x => ({ 0: '新品', 1: '正品', 2: '畅销品' }[x] || x)).join(',')) : ({ 0: '新品', 1: '正品', 2: '畅销品' }[v] || v);
     if (k === 'include_removed') text = '含已下架';
+    if (k === 'types') text = '词类型 ' + (Array.isArray(v) ? v : [v]).map(x => ({ 0: '自然搜索词', 1: '广告搜索词' }[x] || x)).join(',');
     if (k === 'variations_merge') text = v === '1' ? '合并变体' : '不合并变体';
     tags.push(`<span class="atag" data-k="${esc(k)}" data-tool="${esc(tool)}">${esc(text)}<i title="移除">×</i></span>`);
   });
@@ -414,7 +459,25 @@ function renderTable(sel, rows, cols) {
   }).join('') + '</tr>').join('');
   box.innerHTML = `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
   $$('th', box).forEach(th => th.addEventListener('click', () => {
-    const key = th.dataset.k, dir = state.sort === 'desc' ? 'asc' : 'desc';
+    const key = th.dataset.k;
+    const form = $(`form[data-tool="${state.tool}"]`);
+    const sel = form && $('[data-f="sort"]', form);
+    const dsel = form && $('[data-f="direction"]', form);
+    const sf = SORTMAP[key];
+    // 能映射到官方排序字段 → 改表单里的排序条件并重新查询（全量排序）
+    if (sel && sf && [...sel.options].some(o => o.value === sf)) {
+      const dir = state.sortDir === 'desc' ? 'ASC' : 'DESC';
+      state.sortDir = dir.toLowerCase();
+      sel.value = sf;
+      if (dsel) dsel.value = dir;
+      const label = (th.textContent || key).trim();
+      state.page[state.tool] = 1;
+      toast(`按「${label}」${dir === 'DESC' ? '降序' : '升序'}重新查询（服务端排序）`);
+      runTool(state.tool);
+      return;
+    }
+    // 官方无此排序字段 → 仅对当前已加载行排序，并明确提示
+    const dir = state.sort === 'desc' ? 'asc' : 'desc';
     state.sort = dir;
     renderTable(box, rows.slice().sort((a, b) => {
       let x = a[key], y = b[key];
@@ -423,6 +486,7 @@ function renderTable(sel, rows, cols) {
       return dir === 'desc' ? -c : c;
     }), cols);
     const ind = $(`th[data-k="${key}"] .sortind`, box); if (ind) ind.textContent = dir === 'desc' ? ' ↓' : ' ↑';
+    toast('该列官方接口不支持排序，仅对当前 ' + rows.length + ' 行排序', true);
   }));
 }
 document.addEventListener('click', e => {
@@ -557,33 +621,41 @@ async function runTool(tool, btn) {
     let rows = [], note = '', d = {};
     if (tool === 'select') {
       f.page = page;
-      const j = await api(cfg.api, { method: 'POST', body: { filters: f } });
+      const j = await postTool(cfg.api, { filters: f });
       d = j.data; rows = d.rows || []; state.lastApplied = d.applied || {};
-      note = `共命中 <b>${fmt(d.total ?? 0)}</b> 条 · ${j.meta.cached ? '命中缓存 0 积分' : '消耗 <b>' + j.meta.cost + ' 积分</b>'}`;
+      note = `共命中 <b>${fmt(d.total ?? 0)}</b> 条 · ${j.meta.cached ? '命中缓存 0 积分' : '消耗 <b>' + j.meta.cost + ' 积分</b>'}`
+        + (d.fetched_pages > 1 ? ` · 已抓取 ${d.fetched_pages} 页` : '');
+      const lf = d.local_filter;
+      if (lf && lf.fields.length) {
+        note += `<br><span class="warn">${esc(lf.fields.join(' / '))} 只能本地过滤：本次 ${lf.before} 行中剔除 ${lf.filtered_out} 行，仅作用于${esc(lf.scope)}，不是全站</span>`;
+      }
       renderSummary(tool, d, rows);
     } else if (tool === 'category') {
       if (!f.category_id) throw new Error('请填类目 ID（可点左侧类目树）');
       f.page = page;
-      const j = await api(cfg.api, { method: 'POST', body: { category_id: f.category_id, filters: f } });
+      const j = await postTool(cfg.api, { category_id: f.category_id, filters: f });
       d = j.data; rows = d.rows || [];
       renderSummary(tool, { total: (d.overview || {}).products, overview: d.overview }, rows);
-      note = (d.hint ? esc(d.hint) + ' · ' : '') + `商品 ${rows.length} 行 · ${j.meta.cached ? '缓存 0 积分' : '消耗 ' + j.meta.cost + ' 积分'}`;
+      note = (d.hint ? esc(d.hint) + ' · ' : '') + `商品 ${rows.length} 行 · ${j.meta.cached ? '缓存 0 积分' : '消耗 ' + j.meta.cost + ' 积分'}`
+        + (d.fetched_pages > 1 ? ` · 已抓取 ${d.fetched_pages} 页` : '');
     } else if (tool === 'shop') {
       if (!f.id) throw new Error('请填店铺 ID');
       f.page = page;
-      const j = await api(cfg.api, { method: 'POST', body: { id: Number(f.id), filters: f } });
+      const j = await postTool(cfg.api, { id: Number(f.id), filters: f });
       d = j.data; rows = d.rows || [];
       renderSummary(tool, { total: (d.summary || {}).productCount }, rows);
-      note = `店铺商品 ${rows.length} 行 · ${j.meta.cached ? '缓存 0 积分' : '消耗 ' + j.meta.cost + ' 积分'}`;
+      note = `店铺商品 ${rows.length} 行 · ${j.meta.cached ? '缓存 0 积分' : '消耗 ' + j.meta.cost + ' 积分'}`
+        + (d.fetched_pages > 1 ? ` · 已抓取 ${d.fetched_pages} 页` : '');
     } else if (tool === 'hotwords' || tool === 'mining' || tool === 'backsearch') {
       if (tool === 'mining' && !f.keyword) throw new Error('请填种子词');
       if (tool === 'backsearch' && !(f.skus || []).length) throw new Error('请填竞品 SKU');
       f.page = page;
       const body = tool === 'mining' ? { keyword: f.keyword, filters: f }
         : tool === 'backsearch' ? { skus: f.skus, filters: f } : { filters: f };
-      const j = await api(cfg.api, { method: 'POST', body });
+      const j = await postTool(cfg.api, body);
       d = j.data; rows = d.rows || [];
-      note = `${rows.length} 行 · ${j.meta.cached ? '缓存 0 积分' : '消耗 ' + j.meta.cost + ' 积分'}${d.total ? ' · 共 ' + fmt(d.total) : ''}`;
+      note = `${rows.length} 行 · ${j.meta.cached ? '缓存 0 积分' : '消耗 ' + j.meta.cost + ' 积分'}${d.total ? ' · 共 ' + fmt(d.total) : ''}`
+        + (d.fetched_pages > 1 ? ` · 已抓取 ${d.fetched_pages} 页` : '');
     } else if (tool === 'product') {
       if (!f.sku) throw new Error('请填商品 SKU');
       const q = `/api/product?sku=${encodeURIComponent(f.sku)}&date_range=${encodeURIComponent(f.date_range || 'past_30_days')}` + (f.similar ? '&similar=1' : '');
@@ -605,6 +677,7 @@ async function runTool(tool, btn) {
     }
     state.rows = rows;
     state.lastCols = cfg.cols;
+    state.lastPageInfo = d || null;
     const tbox = $('[data-table]', panelOf(tool));
     if (tbox && cfg.cols.some(c => c[0] === 'title') && state.viewMode === 'card') renderCards(tbox, rows);
     else renderTable(tbox, rows, cfg.cols);
@@ -615,17 +688,25 @@ async function runTool(tool, btn) {
     renderAppliedTags(tool);
     refreshStatus();
   } catch (e) {
+    if (e.cancelled) {
+      setMeta(tool, '<span class="muted">' + esc(e.message) + '</span>');
+      renderAppliedTags(tool);
+      return;
+    }
     setMeta(tool, '请求失败：' + esc(e.message) + (e.type ? '（' + esc(e.type) + '）' : ''), true);
     toast(e.message, true);
     renderAppliedTags(tool);
   } finally { busy(b, false); }
-}
+  }
 function renderPager(tool, meta) {
   const box = $('[data-pager]', panelOf(tool)); if (!box) return;
-  const page = state.page[tool] || 1, pages = meta && meta.pages;
-  const off = pages ? page >= pages : false;
+  const page = state.page[tool] || 1;
+  const pages = meta && meta.pages ? Number(meta.pages) : null;
+  // 部分接口只给 hasNextPage（查类目 / 查店铺），没有总页数
+  const hasNext = meta && meta.has_next_page != null ? !!meta.has_next_page : null;
+  const off = pages ? page >= pages : (hasNext === false);
   box.innerHTML = `<button class="btn ghost sm" data-d="-1" ${page <= 1 ? 'disabled' : ''}>← 上一页</button>
-    <span>第 ${page} 页${pages ? ' / 共 ' + fmt(pages) + ' 页' : ''}</span>
+    <span>第 ${page} 页${pages ? ' / 共 ' + fmt(pages) + ' 页' : (hasNext === false ? ' / 已到末页' : '')}</span>
     <button class="btn ghost sm" data-d="1" ${off ? 'disabled' : ''}>下一页 →</button>`;
   $$('button', box).forEach(b => b.onclick = () => {
     state.page[tool] = Math.max(1, page + Number(b.dataset.d)); runTool(tool);
@@ -649,10 +730,7 @@ $$('form[data-tool]').forEach(form => {
     setMeta(tool, '条件已重置。'); renderAppliedTags(tool); toast('已重置');
   });
   const exp = $('[data-export]', panelOf(tool));
-  if (exp) exp.addEventListener('click', () => {
-    if (!state.rows.length) return toast('请先查询出结果', true);
-    doExport(state.rows, TOOL_CFG[tool].kind, exp);
-  });
+  if (exp) exp.addEventListener('click', () => exportFlow(tool, exp));
   const ap = $('[data-applied]', panelOf(tool));
   if (ap) ap.addEventListener('click', () => {
     $('#drawerTitle').textContent = '本次请求参数（官方 Body）';
@@ -661,6 +739,28 @@ $$('form[data-tool]').forEach(form => {
     $('#drawer').classList.remove('hidden');
   });
 });
+
+/* 导出：当前页只有 N 行时会主动提示「抓全量再导」，并给出积分预估 */
+async function exportFlow(tool, btn) {
+  if (!state.rows.length) return toast('请先查询出结果', true);
+  const info = state.lastPageInfo || {};
+  const total = Number(info.total || 0);
+  const form = $(`form[data-tool="${tool}"]`);
+  const sizeEl = form && $('[data-f="size"]', form);
+  const pagesEl = form && $('[data-f="pages"]', form);
+  const size = Number((sizeEl && sizeEl.value) || state.rows.length || 20) || 20;
+  if (pagesEl && total > state.rows.length) {
+    const maxPages = Math.min(10, Math.max(1, Math.ceil(total / size)));
+    const est = Math.round(maxPages * 10);
+    if (confirm(`当前只有 ${state.rows.length} 行，官方共命中 ${total} 行。\n\n是否抓取 ${maxPages} 页（最多约 ${est} 积分，命中缓存不扣费）后再导出？\n\n取消 = 只导出当前 ${state.rows.length} 行`)) {
+      pagesEl.value = maxPages;
+      state.autoConfirm = true;
+      try { await runTool(tool, btn); } finally { state.autoConfirm = false; }
+      if (!state.rows.length) return toast('抓取失败，未导出', true);
+    }
+  }
+  doExport(state.rows, TOOL_CFG[tool].kind, btn);
+}
 
 async function doExport(rows, kind, btn) {
   const clean = rows.map(r => { const o = {}; for (const k in r) if (k !== 'raw' && k !== 'opportunity_parts') o[k] = r[k]; return o; });

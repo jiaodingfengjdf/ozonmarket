@@ -45,9 +45,14 @@
       <form class="filtercard" data-tool="backsearch" autocomplete="off">
         <div class="fall">
           <div class="field span2"><label class="flab">竞品 SKU</label><div class="fctl">
-            <input class="ingrow" data-f="skus" placeholder="必填，多个用逗号分隔" required>
+            <input class="ingrow" data-f="skus" placeholder="必填，最多 20 个，逗号分隔" required>
             <label class="chk">剔除变体 <select class="inxs" data-f="has_variant"><option value="0">否</option><option value="1">是</option></select></label>
             <select class="insm" data-f="match_type"><option value="0">精准匹配</option><option value="1">模糊匹配</option></select>
+          </div></div>
+          <div class="field span2"><label class="flab">词类型 <i class="tip">官方 type</i></label><div class="fctl radios">
+            <label><input type="checkbox" name="bk_type" data-f="types" value="0"><span>自然搜索词</span></label>
+            <label><input type="checkbox" name="bk_type" data-f="types" value="1"><span>广告搜索词</span></label>
+            <span class="fhint">两个都不勾 = 不按类型筛选</span>
           </div></div>
           <div class="field"><label class="flab">曝光量</label><div class="fctl range">
             <input class="innum" type="number" data-f="exposure_min" placeholder="最低"><span class="dash">—</span><input class="innum" type="number" data-f="exposure_max" placeholder="最高"></div></div>
@@ -89,6 +94,7 @@
           <div class="foot-left">
             <label class="chk"><input type="checkbox" data-f="force"> 强制刷新</label>
             <label class="chk">每页 <input class="inxs" type="number" data-f="size" value="30" min="1" max="100"></label>
+            <label class="chk" title="多页抓取按页计费；命中缓存不扣费">抓取 <input class="inxs" type="number" data-f="pages" value="1" min="1" max="10"> 页</label>
             <select class="insm" data-f="sort"><option value="exposure">按 曝光</option><option value="searchVolume">按 搜索量</option>
               <option value="naturalRank">按 自然排名</option><option value="conversion">按 转化</option></select>
             <select class="inxs" data-f="direction"><option value="DESC">降序</option><option value="ASC">升序</option></select>

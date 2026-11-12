@@ -280,6 +280,9 @@ GET  /api/download?file=           下载导出文件
 POST /api/cache/clear              清缓存（需 confirm）
 ```
 
+所有查询接口都接受 `filters.pages`（1~10）：`pages>1` 且未带 `confirm:true` 时，返回
+`{"need_confirm":true,"pages":N,"estimated_credit":X}`，带 `confirm:true` 才真正翻页抓取。
+
 ---
 
 ## 9. 已知约束 / 排障
@@ -298,6 +301,32 @@ POST /api/cache/clear              清缓存（需 confirm）
 
 **未实现**：评论分析任务的自动轮询（创建后需另调报表接口）；批量定时任务。
 **不做**：任何形式的 Ozon 页面抓取、cookie 复用、挑战绕过 —— 这些正是本系统要替换掉的东西。
+
+---
+
+## 9.1 阶段 1 修正（已上线，2026-11-13）
+
+这一批修的是「界面能选、后端没发 / 发了但只作用于本页」这类**假生效**问题：
+
+| 修正 | 之前 | 现在 |
+|---|---|---|
+| **市场热词页左侧类目树** | 勾选后不进请求，永远是全站热词 | `collectForm` 把已选类目注入 `categories`（≤20），后端 `hot_words` 同时兼容 `categories / category_ids / category_id` |
+| **店铺分析页 7 个条件** | 界面有 `fulfillment / labels / brands / brand_type / keywords / tag / creation_date`，后端只发区间与 SKU | 全部按官方 Body 表透传；响应 `applied` 里可核对实际发送内容 |
+| **评论接口语言** | 传 `zh-CN`（官方枚举是 `CN/EN/RU`），`sku` 传字符串 | `language` 归一为 `CN/EN/RU`，词频/报表的 `sku` 转 int，非数字直接报错 |
+| **本地过滤冒充全站过滤** | 跨境 / 店铺类型 / 上架日期只过滤当前页，`filtered_out` 前端不显示 | 返回 `local_filter{fields,filtered_out,scope}`，结果区红字提示「仅作用于本页 N 行，不是全站」 |
+| **表头排序** | 只对已加载的 20~50 行排序，用户以为全站降序 | 能映射到官方排序字段的列 → 改写表单 `sort/direction` 并**重新请求**（服务端排序）；映射不到的列明确提示「仅对当前 N 行排序」 |
+| **导出** | 只导出当前页 | 导出前若命中数 > 当前行数，提示「抓取 M 页（约 X 积分）后再导出」，确认后自动翻页抓取再导出 |
+| **多页抓取** | CLI 有 `--pages`，网页没有 | 每个查询页底部新增「抓取 [1~10] 页」；`pages>1` 时后端先返回 `need_confirm + estimated_credit`，前端弹确认后才执行（按页计费，命中缓存 0 积分） |
+| **关键词反查** | 没传文档里的 `type`（自然/广告），SKU 数量无校验 | 新增「词类型」自然/广告多选；`skuIds` 超过 20 或为空直接 400 报错 |
+| **评论 `sku` 校验 / 类目 ID 归一** | 任何输入都直接透传 | `_sku_int()` 严格数字校验；`_ids_list()` 兼容数组/逗号串/单值并去重 |
+
+多页抓取的计费口径：`pages × 单次成本（约 9~10 分）`，**同一参数再次抓取命中缓存不扣费**，所以重复导出不会重复烧积分。
+分页控件同时兼容 `totalPages`（榜单/关键词）与 `hasNextPage`（查类目/查店铺），后者不会再无限往下翻。
+
+自测（不消耗积分，用假客户端断言 Body）：
+```powershell
+python tools/test_stage1.py      # 39 项断言：条件透传 / 多页去重 / 语言枚举 / 上限校验 / 本地过滤标注
+```
 
 ---
 

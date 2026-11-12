@@ -37,6 +37,21 @@ def _force(b):
     return bool(b.get("force") or f.get("force"))
 
 
+def _multi_guard(b, endpoint_name):
+    """多页抓取要按页计费，pages>1 时先返回预估，等前端确认（confirm=true）再执行。"""
+    f = b.get("filters") or {}
+    try:
+        pages = int(f.get("pages") or 1)
+    except (TypeError, ValueError):
+        pages = 1
+    if pages <= 1 or b.get("confirm"):
+        return None
+    cost = CLIENT.cost_of(endpoint_name) * pages
+    return {"need_confirm": True, "pages": pages,
+            "estimated_credit": round(cost, 1),
+            "tip": f"抓取 {pages} 页，最多约 {round(cost, 1)} 积分（命中缓存不扣费）"}
+
+
 CLIENT = get_client()
 CATALOG = get_catalog(CLIENT)
 SELECTOR = Selector(CLIENT, catalog=CATALOG)
@@ -145,7 +160,7 @@ class Handler(BaseHTTPRequestHandler):
             if p == "/api/vartop":
                 return self.ok(SELECTOR.var_top(one("sku", ""), one("characteristic", "")))
             if p == "/api/reviews":
-                return self.reviews(one("sku", ""), one("type", "stat"), one("language", "zh-CN"))
+                return self.reviews(one("sku", ""), one("type", "stat"), one("language", "CN"))
             if p == "/api/shop":
                 return self.ok(SELECTOR.shop(int(one("id", "0") or 0),
                                              {"size": int(one("size", 20) or 20)}))
@@ -167,24 +182,42 @@ class Handler(BaseHTTPRequestHandler):
         b = self.body()
         try:
             if p == "/api/top":
+                g = _multi_guard(b, "top")
+                if g:
+                    return self.ok(g)
                 r = SELECTOR.top(b.get("filters") or {}, force=_force(b))
                 return self.ok(r, cached=r.get("cached"), cost=r.get("cost"))
             if p == "/api/category":
+                g = _multi_guard(b, "category")
+                if g:
+                    return self.ok(g)
                 cid = CATALOG.resolve(b.get("category_id")) or b.get("category_id") or ""
                 r = SELECTOR.category(cid, b.get("filters") or {}, force=_force(b))
                 return self.ok(r, cached=r.get("cached"), cost=r.get("cost"))
             if p == "/api/hotwords":
+                g = _multi_guard(b, "market")
+                if g:
+                    return self.ok(g)
                 r = SELECTOR.hot_words(b.get("filters") or {}, force=_force(b))
                 return self.ok(r, cached=r.get("cached"), cost=r.get("cost"))
             if p == "/api/mining":
+                g = _multi_guard(b, "mining")
+                if g:
+                    return self.ok(g)
                 r = SELECTOR.mining(b.get("keyword") or "", b.get("filters") or {},
                                     force=_force(b))
                 return self.ok(r, cached=r.get("cached"), cost=r.get("cost"))
             if p == "/api/backsearch":
+                g = _multi_guard(b, "backsearch")
+                if g:
+                    return self.ok(g)
                 r = SELECTOR.backsearch(b.get("skus") or [], b.get("filters") or {},
                                         force=_force(b))
                 return self.ok(r, cached=r.get("cached"), cost=r.get("cost"))
             if p == "/api/shop":
+                g = _multi_guard(b, "shop")
+                if g:
+                    return self.ok(g)
                 r = SELECTOR.shop(int(b.get("id") or 0), b.get("filters") or {})
                 return self.ok(r, cached=r.get("cached"), cost=r.get("cost"))
             if p == "/api/categories/enrich":

@@ -1,6 +1,6 @@
 # Seerfar Open API **文档**
 
-base url:http://api.seerfar.cn     key:<YOUR_API_KEY>
+base url:http://api.seerfar.cn     key:
 
 ## 鉴权
 
