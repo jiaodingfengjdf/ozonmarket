@@ -185,9 +185,10 @@
           if (d1) f.up_time_from = Date.parse(d1 + 'T00:00:00');
           if (d2) f.up_time_to = Date.parse(d2 + 'T23:59:59');
           if (quickDays.value && !d1 && !d2) {
-            // 官方只支持 creationDate 月数枚举：只发这个，避免触发本地过滤
-            f.creation_date = quickDays.value <= 30 ? 1 : quickDays.value <= 90 ? 3
-              : quickDays.value <= 180 ? 6 : quickDays.value <= 365 ? 12 : 24;
+            // 官方 creationDate：null 不筛选 / 1 近30天 / 3 近90天 / 6 近180天 / 12 近一年 / 24 近2年
+            const CREATE_DATE_MAP = { 30: 1, 90: 3, 180: 6, 365: 12, 730: 24 };
+            const cd = CREATE_DATE_MAP[Number(quickDays.value)];
+            if (cd) f.creation_date = cd;   // 0（全部）→ 不传，官方按 null 处理
           }
           if (selectedCats.value.length) f.category_ids = selectedCats.value.slice(0, 20).map(c => c.id);
         }
