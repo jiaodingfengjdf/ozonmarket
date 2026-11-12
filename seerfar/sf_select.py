@@ -113,7 +113,7 @@ def _range(src: dict, key: str, lo_key=None, hi_key=None):
     return {"min": lo, "max": hi}
 
 
-def _page(page=1, size=20, field="revenue", direction="DESC", allowed=None):
+def _page(page=1, size=100, field="revenue", direction="DESC", allowed=None):
     page, size = max(1, int(page or 1)), min(100, max(1, int(size or 20)))
     direction = "ASC" if str(direction).upper() == "ASC" else "DESC"
     if allowed and field not in allowed:
