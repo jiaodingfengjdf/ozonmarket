@@ -912,26 +912,6 @@
           </div>
         </div>
       </form>
-
-      <section class="filtercard" v-if="cfg.kind === 'products'">
-        <div class="fall">
-          <div class="field" v-for="k in PROFIT_KEYS" :key="k">
-            <label class="flab">{{ PROFIT_LABEL[k] }}</label>
-            <div class="fctl"><input type="number" step="any" v-model="profit[k]" :placeholder="String(PROFIT_DEFAULTS ? '' : '')"></div>
-          </div>
-        </div>
-        <div class="formfoot">
-          <div class="foot-left">
-            <label class="chk"><input type="checkbox" v-model="profitOnly"> 只看盈利</label>
-            <span class="tiny" v-html="profitMeta || '按「采购价 + 头程 + 佣金 + 广告 + 退货」重算净利/真毛利/保本价，本地计算 0 积分'"></span>
-          </div>
-          <div class="foot-right">
-            <button type="button" class="btn ghost" @click="exportReport">导出选品报告</button>
-            <button type="button" class="btn primary" @click="runProfit">计算利润</button>
-          </div>
-        </div>
-      </section>
-
       <section class="resultcard" v-if="page.tool !== 'product'">
         <div class="resulthead">
           <div class="resultr"><h3>{{ page.resultTitle }}</h3><span class="badge solid">{{ rows.length }}</span></div>
