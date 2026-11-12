@@ -819,7 +819,260 @@ document.addEventListener('keydown', e => {
   }
 });
 
+/* ================= 阶段 2：店铺品牌/类目结构 + 变体分析 + 评论分析 ================= */
+function curSku() { const el = $('form[data-tool="product"] [data-f="sku"]'); return el ? el.value.trim() : ''; }
+function curShopId() { const el = $('form[data-tool="shop"] [data-f="id"]'); return el ? el.value.trim() : ''; }
+
+/* 简易表格：cols = [表头, 数据键, 类型(money|pct|text|num)] */
+function miniTable(box, cols, rows, emptyText) {
+  if (!box) return;
+  if (!rows || !rows.length) {
+    box.innerHTML = `<div class="placeholder"><div class="ph-title">没有数据</div><div class="ph-desc">${esc(emptyText || '')}</div></div>`;
+    return;
+  }
+  const head = cols.map(([l]) => `<th>${esc(l)}</th>`).join('');
+  const body = rows.map(r => '<tr>' + cols.map(([, k, kind]) => {
+    const v = r[k];
+    if (kind === 'text') return `<td>${esc(v == null || v === '' ? '—' : String(v))}</td>`;
+    if (kind === 'money') return `<td class="num">${v == null ? '—' : money(v)}</td>`;
+    if (kind === 'pct') return `<td class="num">${v == null ? '—' : fmt(v) + '%'}</td>`;
+    return `<td class="num">${v == null ? '—' : fmt(v)}</td>`;
+  }).join('') + '</tr>').join('');
+  box.innerHTML = `<table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>`;
+}
+
+const BRAND_COLS = [['品牌', 'name', 'text'], ['销售额 ₽', 'revenue', 'money'], ['占本页%', 'page_share', 'pct'],
+  ['Top10份额%', 'sharing', 'pct'], ['销量', 'sales'], ['商品数', 'products'], ['有销量商品', 'products_with_sales'],
+  ['均价 ₽', 'avg_price', 'money'], ['均销', 'avg_sales'], ['均评分', 'avg_rating'], ['均评论', 'avg_reviews'],
+  ['卖家数', 'sellers'], ['退货率%', 'return_rate', 'pct']];
+const CAT_COLS = [['类目', 'cn_path', 'text'], ['销售额 ₽', 'revenue', 'money'], ['占本页%', 'page_share', 'pct'],
+  ['销量', 'sales'], ['商品数', 'products'], ['均价 ₽', 'avg_price', 'money'],
+  ['销额增长%', 'revenue_rate', 'pct'], ['销量增长%', 'sales_rate', 'pct']];
+const VAR_COLS = [['SKU', 'sku', 'text'], ['变体特征', 'variation_text', 'text'], ['价格 ₽', 'price', 'money'],
+  ['月销量', 'sales'], ['月销额 ₽', 'revenue', 'money'], ['评论数', 'review_count'],
+  ['评分', 'review_rating'], ['上架', 'up_time_date', 'text']];
+
+async function loadShopBrands(btn) {
+  const id = curShopId(); if (!id) return toast('先填店铺 ID', true);
+  busy(btn, true, '加载中');
+  try {
+    const j = await api('/api/shop/brands?id=' + encodeURIComponent(id) + '&size=50');
+    const d = j.data || {}, t = d.top || {};
+    miniTable($('[data-brand-table]'), BRAND_COLS, d.rows, '该店铺没有品牌数据（或该接口无权限）');
+    $('[data-brand-count]').textContent = fmt((d.rows || []).length);
+    $('[data-brand-meta]').innerHTML =
+      `品牌总数 <b>${fmt(t.total)}</b> · 店铺总销额 <b>${money(t.total_revenue)}</b> ₽ · 总销量 <b>${fmt(t.total_sales)}</b>`
+      + ` · Top10 销售额占比 <b>${t.revenue_share_top10 == null ? '—' : t.revenue_share_top10 + '%'}</b>`
+      + ` · ${j.meta && j.meta.cached ? '命中缓存 0 积分' : '消耗 ' + (j.meta && j.meta.cost) + ' 积分'}`;
+    refreshStatus();
+  } catch (e) { toast(e.message, true); $('[data-brand-meta]').textContent = '加载失败：' + e.message; }
+  finally { busy(btn, false); }
+}
+
+async function loadShopCats(btn) {
+  const id = curShopId(); if (!id) return toast('先填店铺 ID', true);
+  busy(btn, true, '加载中');
+  try {
+    const j = await api('/api/shop/categories?id=' + encodeURIComponent(id) + '&size=50');
+    const d = j.data || {};
+    miniTable($('[data-cat-table]'), CAT_COLS, d.rows, '该店铺没有类目数据');
+    $('[data-cat-count]').textContent = fmt((d.rows || []).length);
+    $('[data-cat-meta]').innerHTML = `类目 ${(d.rows || []).length} 行 · 共 ${fmt(d.total)} 个`
+      + ` · ${j.meta && j.meta.cached ? '命中缓存 0 积分' : '消耗 ' + (j.meta && j.meta.cost) + ' 积分'}`;
+    refreshStatus();
+  } catch (e) { toast(e.message, true); $('[data-cat-meta]').textContent = '加载失败：' + e.message; }
+  finally { busy(btn, false); }
+}
+
+async function loadVarList(btn) {
+  const sku = curSku(); if (!sku) return toast('先填商品 SKU', true);
+  busy(btn, true, '加载中');
+  try {
+    const j = await api('/api/variations?sku=' + encodeURIComponent(sku) + '&size=50');
+    const rows = (j.data && j.data.rows) || [];
+    miniTable($('[data-var-table]'), VAR_COLS, rows, '没有变体数据');
+    $('[data-var-count]').textContent = fmt(rows.length);
+    $('[data-var-meta]').innerHTML = `变体 <b>${rows.length}</b> 个 · 共 ${fmt(j.data.total)}`
+      + ` · ${j.meta && j.meta.cached ? '缓存 0 积分' : '消耗 ' + (j.meta && j.meta.cost) + ' 积分'}`;
+    refreshStatus();
+  } catch (e) { toast(e.message, true); $('[data-var-meta]').textContent = '加载失败：' + e.message; }
+  finally { busy(btn, false); }
+}
+
+async function loadVarChars(btn) {
+  const sku = curSku(); if (!sku) return toast('先填商品 SKU', true);
+  const box = $('[data-var-chars]');
+  busy(btn, true, '加载中');
+  try {
+    const j = await api('/api/varchars?sku=' + encodeURIComponent(sku));
+    const rows = (j.data && j.data.rows) || [];
+    box.innerHTML = rows.length
+      ? '<span class="muted">点维度看 Top10：</span>' + rows.map(c =>
+        `<button class="chipbtn" data-char="${esc(c.sourceName || '')}">${esc(c.name || c.sourceName || '')}` +
+        `<i>${esc(c.sourceName || '')}</i></button>`).join('')
+      : '<span class="muted">该商品没有可用变体维度（或未返回）</span>';
+    $('[data-var-meta]').innerHTML = `维度 ${rows.length} 个 · ${j.meta && j.meta.cached ? '缓存 0 积分' : '消耗 ' + (j.meta && j.meta.cost) + ' 积分'}`;
+    refreshStatus();
+  } catch (e) { toast(e.message, true); box.innerHTML = `<span class="muted">${esc(e.message)}</span>`; }
+  finally { busy(btn, false); }
+}
+
+async function loadVarTop(char, btn) {
+  const sku = curSku(); if (!sku) return toast('先填商品 SKU', true);
+  busy(btn, true, '加载中');
+  try {
+    const j = await api('/api/vartop?sku=' + encodeURIComponent(sku) + '&characteristic=' + encodeURIComponent(char));
+    const d = j.data || {}, rev = d.revenues || [], sal = d.sales || [];
+    const map = new Map();
+    rev.forEach((x, i) => map.set(x.name, { name: x.name, rank: i + 1, revenue: x.quantity }));
+    sal.forEach((x, i) => { const o = map.get(x.name) || { name: x.name }; o.sales = x.quantity; o.salesRank = i + 1; map.set(x.name, o); });
+    miniTable($('[data-var-table]'),
+      [['特征值', 'name', 'text'], ['销额排名', 'rank'], ['销售额', 'revenue', 'money'], ['销量排名', 'salesRank'], ['销量', 'sales']],
+      [...map.values()], '该维度没有数据');
+    $('[data-var-meta]').innerHTML = `维度「<b>${esc(char)}</b>」Top10 · ${j.meta && j.meta.cached ? '缓存 0 积分' : '消耗 ' + (j.meta && j.meta.cost) + ' 积分'}`;
+    refreshStatus();
+  } catch (e) { toast(e.message, true); }
+  finally { busy(btn, false); }
+}
+
+const SIM_COLS = [['SKU', 'sku', 'text'], ['标题', 'title', 'text'], ['价格 ₽', 'price', 'money'],
+  ['月销量', 'sales'], ['月销额 ₽', 'revenue', 'money'], ['库存', 'stock'], ['评论数', 'review_count'],
+  ['评分', 'review_rating'], ['毛利率%', 'gross_margin', 'pct'], ['卖家', 'seller', 'text']];
+
+async function loadSimilar(btn) {
+  const sku = curSku(); if (!sku) return toast('先填商品 SKU', true);
+  busy(btn, true, '加载中');
+  try {
+    const j = await api('/api/similar?sku=' + encodeURIComponent(sku));
+    const rows = (j.data && j.data.rows) || [];
+    miniTable($('[data-sim-table]'), SIM_COLS, rows, '没有相似商品');
+    $('[data-sim-count]').textContent = fmt(rows.length);
+    $('[data-sim-meta]').innerHTML = `相似 ${rows.length} 条（含目标商品）`
+      + ` · ${j.meta && j.meta.cached ? '命中缓存 0 积分' : '消耗 ' + (j.meta && j.meta.cost) + ' 积分'}`;
+    refreshStatus();
+  } catch (e) { toast(e.message, true); $('[data-sim-meta]').textContent = '加载失败：' + e.message; }
+  finally { busy(btn, false); }
+}
+
+/* ---------- 评论分析 ---------- */
+function revLang() { const s = $('[data-rev-lang]'); return s ? s.value : 'CN'; }
+
+function renderRevStat(box, d) {
+  const s = d.statistic || {};
+  if (!s || s.reviewCount == null) {
+    box.innerHTML = '<div class="empty">还没有该 SKU 的评论统计（可能未创建分析任务）</div>'; return;
+  }
+  const bars = [5, 4, 3, 2, 1].map(n => {
+    const cn = { 5: 'fiveStarCount', 4: 'fourStarCount', 3: 'threeStarCount', 2: 'twoStarCount', 1: 'oneStarCount' }[n];
+    const cp = { 5: 'fiveStarPercent', 4: 'fourStarPercent', 3: 'threeStarPercent', 2: 'twoStarPercent', 1: 'oneStarPercent' }[n];
+    const c = s[cn] || 0, p = s[cp] || 0;
+    return `<div class="barrow"><span class="barlab">${n}★</span>
+      <span class="bar"><i style="width:${Math.min(100, p)}%"></i></span>
+      <span class="barval">${fmt(c)} · ${fmt(p)}%</span></div>`;
+  }).join('');
+  box.innerHTML = `<div class="card-grid">
+      <div class="card"><b>${fmt(s.reviewCount)}</b><span>评论总数</span></div>
+      <div class="card"><b>${fmt(s.reviewRating)}</b><span>商品评分</span></div>
+      <div class="card"><b>${s.avgRating == null ? '—' : fmt(s.avgRating)}</b><span>平均评分</span></div>
+    </div>
+    <div class="stars">${bars}</div>`;
+}
+
+function renderRevWords(box, d) {
+  const chips = arr => (arr || []).slice(0, 150).map(w => `<span class="wchip">${esc(w)}</span>`).join('');
+  const o = d.origin || [], c = d.sinicized || [];
+  if (!o.length && !c.length) { box.innerHTML = '<div class="empty">没有词频数据（需先创建分析任务）</div>'; return; }
+  box.innerHTML = `${c.length ? `<h4>中文词频（${c.length}）</h4><div class="wchips">${chips(c)}</div>` : ''}
+    ${o.length ? `<h4>原文词频（${o.length}）</h4><div class="wchips">${chips(o)}</div>` : ''}`;
+}
+
+function renderRevOriginal(box, d) {
+  const rows = (d.rows || []).slice(0, 60);
+  if (!rows.length) { box.innerHTML = '<div class="empty">没有原始评论</div>'; return; }
+  box.innerHTML = `<div class="revlist">` + rows.map(r => `
+    <div class="revitem">
+      <div class="revhead"><b>${'★'.repeat(Math.max(0, Math.min(5, Number(r.star) || 0)))}</b>
+        <span class="muted">${esc(r.date || r.ruDate || '')} · ${esc(r.author || '匿名')}${r.skus ? ' · SKU ' + esc(r.skus) : ''}</span></div>
+      <div class="revtext">${esc(r.text || '（无正文）')}</div>
+      ${(r.photos && r.photos.length) ? `<div class="revphotos">${r.photos.slice(0, 6).map(u => `<img src="${esc(u)}" loading="lazy">`).join('')}</div>` : ''}
+    </div>`).join('') + `</div>`;
+}
+
+const DIM_KEYS = ['advantages', 'disadvantages', 'usageScenarios', 'userCharacteristics', 'unmetNeeds',
+  'timePoints', 'usageLocations', 'userBehavior', 'purchaseMotivations'];
+const DIM_LABEL = { advantages: '优点', disadvantages: '缺点', usageScenarios: '使用场景', userCharacteristics: '用户特征',
+  unmetNeeds: '未满足需求', timePoints: '使用时刻', usageLocations: '使用地点', userBehavior: '用户行为', purchaseMotivations: '购买动机' };
+
+function renderRevReport(box, d) {
+  const has = DIM_KEYS.some(k => (d[k] || []).length) || d.optSugges || d.qaAnalysis;
+  if (!has) { box.innerHTML = '<div class="empty">没有报表数据（需先创建分析任务，再回来查报表）</div>'; return; }
+  const dims = DIM_KEYS.map(k => {
+    const arr = d[k] || [];
+    if (!arr.length) return '';
+    return `<h4>${DIM_LABEL[k]}（${arr.length}）</h4><div class="wchips">` + arr.map(x =>
+      `<span class="wchip">${esc(x.dimensionCn || x.dimensionRu || '')}${x.count != null ? ` · ${fmt(x.count)}条` : ''}${x.proportion != null ? ` · ${(Number(x.proportion) * (Number(x.proportion) <= 1 ? 100 : 1)).toFixed(1)}%` : ''}</span>`).join('') + '</div>';
+  }).join('');
+  const kv = obj => obj ? Object.entries(obj).map(([k, v]) => `<div>${esc(k)}</div><div>${esc(v)}</div>`).join('') : '';
+  box.innerHTML = dims
+    + (d.optSugges ? `<h4>运营建议</h4><div class="kv">${kv(d.optSugges)}</div>` : '')
+    + (d.qaAnalysis ? `<h4>问答分析</h4><div class="kv">${kv(d.qaAnalysis)}</div>` : '');
+}
+
+async function loadReview(kind, btn) {
+  const sku = curSku(); if (!sku) return toast('先填商品 SKU', true);
+  const box = $('[data-rev-box]');
+  const label = { stat: '星级分布', words: '词频', original: '原始评论', report: 'AI 报表' }[kind];
+  busy(btn, true, '加载中');
+  try {
+    const j = await api(`/api/reviews?sku=${encodeURIComponent(sku)}&type=${kind}&language=${revLang()}`);
+    const d = j.data || {};
+    if (kind === 'stat') renderRevStat(box, d);
+    else if (kind === 'words') renderRevWords(box, d);
+    else if (kind === 'original') renderRevOriginal(box, d);
+    else renderRevReport(box, d);
+    $('[data-rev-meta]').innerHTML = `${label} · 语言 ${esc(revLang())}`
+      + ` · ${j.meta && j.meta.cached ? '命中缓存 0 积分' : '消耗 ' + (j.meta && j.meta.cost) + ' 积分'}`;
+    $('[data-rev-count]').textContent = kind === 'original' ? fmt(((d.rows) || []).length) : '';
+    refreshStatus();
+  } catch (e) {
+    toast(e.message, true);
+    box.innerHTML = `<div class="empty" style="color:var(--bad)">${esc(e.message)}</div>`;
+    $('[data-rev-meta]').textContent = '加载失败：' + e.message;
+  } finally { busy(btn, false); }
+}
+
+async function createRevTask(btn) {
+  const sku = curSku(); if (!sku) return toast('先填商品 SKU', true);
+  if (!confirm(`创建评论分析任务：官方按 200 积分/SKU 计费，且需要一段时间才出报表。\n\nSKU ${sku} · 语言 ${revLang()}\n\n确认创建？`)) return;
+  busy(btn, true, '创建中');
+  try {
+    const j = await api('/api/reviews/task', { method: 'POST', body: { skus: [sku], confirm: true } });
+    toast('任务已创建：' + JSON.stringify(j.data || {}).slice(0, 100));
+    $('[data-rev-meta]').innerHTML = '任务已提交，稍后点「AI 报表 / 词频」查看结果（同一 SKU 已创建过就不必重复付费）。';
+    refreshStatus();
+  } catch (e) { toast(e.message, true); }
+  finally { busy(btn, false); }
+}
+
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-act]');
+  if (b) {
+    const act = b.dataset.act;
+    const fn = {
+      'shop-brands': () => loadShopBrands(b), 'shop-cats': () => loadShopCats(b),
+      'var-list': () => loadVarList(b), 'var-chars': () => loadVarChars(b),
+      'rev-stat': () => loadReview('stat', b), 'rev-words': () => loadReview('words', b),
+      'rev-original': () => loadReview('original', b), 'rev-report': () => loadReview('report', b),
+      'rev-task': () => createRevTask(b), 'similar': () => loadSimilar(b)
+    }[act];
+    if (fn) { fn(); return; }
+  }
+  const ch = e.target.closest('[data-char]');
+  if (ch) loadVarTop(ch.dataset.char, ch);
+});
+
 /* ---------- 启动（多页面：只初始化当前页） ---------- */
+
 const _q = new URLSearchParams(location.search);
 $$('[data-viewmode]').forEach(b => b.classList.toggle('on', b.dataset.viewmode === state.viewMode));
 refreshStatus();

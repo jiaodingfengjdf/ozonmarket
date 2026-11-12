@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -122,6 +122,28 @@
         <div class="tablewrap" data-table><div class="placeholder"><div class="ph-icon">◈</div><div class="ph-title">还没有查询结果</div>
           <div class="ph-desc">填一个店铺 ID，看它近 30 天的商品表现</div></div></div>
         <div class="pager" data-pager></div>
+      </section>
+
+      <section class="resultcard">
+        <div class="resulthead">
+          <div class="resultr"><h3>品牌结构</h3><span class="badge solid" data-brand-count>0</span><span class="muted" data-brand-note></span></div>
+          <div class="resultbar-actions">
+            <button class="btn ghost sm" data-act="shop-brands">加载品牌结构（约 10 分）</button>
+          </div>
+        </div>
+        <div class="statusline" data-brand-meta>品牌集中度、Top10 销售额/销量份额、各品牌均价与评分（官方「查店铺品牌」）。</div>
+        <div class="tablewrap" data-brand-table></div>
+      </section>
+
+      <section class="resultcard">
+        <div class="resulthead">
+          <div class="resultr"><h3>类目结构</h3><span class="badge solid" data-cat-count>0</span><span class="muted" data-cat-note></span></div>
+          <div class="resultbar-actions">
+            <button class="btn ghost sm" data-act="shop-cats">加载类目结构（约 10 分）</button>
+          </div>
+        </div>
+        <div class="statusline" data-cat-meta>该店铺在各三级类目的销售额、销量、商品数、均价（官方「查店铺类目」）。</div>
+        <div class="tablewrap" data-cat-table></div>
       </section>
     </section>
 

@@ -16,3 +16,7 @@ seerfar/export/
 export/
 out/
 .chrome-profile/
+
+# ---- 运行日志（不要入库）----
+server.log*
+*.log.err

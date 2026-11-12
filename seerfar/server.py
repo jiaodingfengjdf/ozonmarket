@@ -164,6 +164,19 @@ class Handler(BaseHTTPRequestHandler):
             if p == "/api/shop":
                 return self.ok(SELECTOR.shop(int(one("id", "0") or 0),
                                              {"size": int(one("size", 20) or 20)}))
+            if p == "/api/shop/brands":
+                r = SELECTOR.shop_brands(int(one("id", "0") or 0),
+                                         int(one("page", 1) or 1),
+                                         int(one("size", 20) or 20))
+                return self.ok(r, cached=r.get("cached"), cost=r.get("cost"))
+            if p == "/api/shop/categories":
+                r = SELECTOR.shop_categories(int(one("id", "0") or 0),
+                                             int(one("page", 1) or 1),
+                                             int(one("size", 20) or 20))
+                return self.ok(r, cached=r.get("cached"), cost=r.get("cost"))
+            if p == "/api/similar":
+                r = SELECTOR.similar(one("sku", ""))
+                return self.ok(r, cached=r.get("cached"), cost=r.get("cost"))
             if p == "/api/filters":
                 return self.ok({"product_columns": PRODUCT_COLUMNS,
                                 "keyword_columns": KEYWORD_COLUMNS,

@@ -440,3 +440,25 @@ td.dim{color:var(--muted)}
 /* 本地过滤警示（仅作用于当前抓取页，非全站） */
 .warn{color:#b45309;font-weight:600}
 
+
+/* ===== 阶段2：店铺结构 / 变体 / 评论 ===== */
+.chipbtn{display:inline-flex;align-items:center;gap:6px;margin:4px 6px 4px 0;padding:5px 10px;border-radius:999px;
+  border:1px solid #d6e2f5;background:#f4f8ff;color:#1f3f74;font-size:12.5px;cursor:pointer}
+.chipbtn:hover{background:#e6f0ff;border-color:#a9c6ef}
+.chipbtn i{font-style:normal;color:#8496b5;font-size:11px}
+.chips{min-height:8px;margin:2px 0 8px}
+.wchips{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 12px}
+.wchip{background:#eef3fb;border:1px solid #dde7f6;border-radius:6px;padding:3px 8px;font-size:12px;color:#33456b}
+.stars{margin:12px 0 4px;max-width:620px}
+.barrow{display:flex;align-items:center;gap:8px;margin:5px 0;font-size:12px}
+.barlab{width:26px;color:#5b6b8c}
+.bar{flex:1;height:8px;background:#eef2f9;border-radius:999px;overflow:hidden}
+.bar i{display:block;height:100%;background:linear-gradient(90deg,#f5a524,#f97316)}
+.barval{width:104px;text-align:right;color:#5b6b8c}
+.revlist{display:flex;flex-direction:column;gap:10px;margin-top:8px}
+.revitem{border:1px solid #e8eef8;border-radius:10px;padding:10px 12px;background:#fbfdff}
+.revhead{display:flex;gap:10px;align-items:baseline;margin-bottom:4px}
+.revhead b{color:#f59e0b;letter-spacing:1px}
+.revtext{font-size:12.8px;line-height:1.6;color:#2a3550;white-space:pre-wrap}
+.revphotos{display:flex;gap:6px;margin-top:7px}
+.revphotos img{width:54px;height:54px;object-fit:cover;border-radius:6px;border:1px solid #e6edf8}

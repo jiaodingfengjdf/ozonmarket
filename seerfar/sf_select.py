@@ -655,23 +655,43 @@ class Selector:
                 out["similar_error"] = str(e)
         return out
 
+    def similar(self, sku, *, force=False):
+        """相似商品（单次约 10 积分），单独成接口，方便做竞品对比。"""
+        r = self.c.call("similar", {"sku": _sku_int(sku)}, force=force)
+        rows = []
+        for x in (r.data or []):
+            p = norm_product(x)
+            p["stock"] = num(x.get("stock"))     # 相似商品列表额外带库存
+            rows.append(p)
+        return {"rows": rows, "cached": r.cached, "cost": r.cost}
+
     def variations(self, sku, page=1, size=50):
-        r = self.c.call("var_search", {"sku": int(sku),
+        r = self.c.call("var_search", {"sku": _sku_int(sku),
                                        "page": _page(page, size, "revenue", "DESC",
                                                      SORT_FIELDS["var_search"]),
                                        "clientLanguage": "zh-CN"})
         d = r.data or {}
-        return {"rows": [norm_product(x) for x in (d.get("records") or [])],
-                "total": d.get("total"), "cached": r.cached}
+        recs = d.get("records") or []
+        rows = [norm_product(x) for x in recs]
+        # 变体特征值（颜色:Черный 等）单独拼一列，norm_product 不包含该字段
+        for src, row in zip(recs, rows):
+            chars = src.get("characteristics") or []
+            row["variation_text"] = " · ".join(
+                f"{c.get('name') or c.get('sourceName')}:{c.get('value')}"
+                for c in chars if c.get("value"))
+        return {"rows": rows, "total": d.get("total"), "pages": d.get("totalPages"),
+                "cached": r.cached, "cost": r.cost}
 
     def var_characteristics(self, sku):
-        r = self.c.call("var_chars", {"sku": int(sku), "clientLanguage": "zh-CN"})
-        return {"rows": r.data or [], "cached": r.cached}
+        r = self.c.call("var_chars", {"sku": _sku_int(sku), "clientLanguage": "zh-CN"})
+        return {"rows": r.data or [], "cached": r.cached, "cost": r.cost}
 
     def var_top(self, sku, characteristic):
-        r = self.c.call("var_top", {"sku": int(sku), "characteristic": characteristic,
+        r = self.c.call("var_top", {"sku": _sku_int(sku), "characteristic": characteristic,
                                     "clientLanguage": "zh-CN"})
-        return {"rows": r.data or {}, "cached": r.cached}
+        d = r.data or {}
+        return {"revenues": d.get("revenues") or [], "sales": d.get("sales") or {},
+                "rows": d, "cached": r.cached, "cost": r.cost}
 
     def shop(self, shop_id, f=None, *, force=False):
         f = f or {}
@@ -732,35 +752,116 @@ class Selector:
                 "has_next_page": d.get("hasNextPage"),
                 "applied": {k: v for k, v in body.items() if k != "page"}}
 
-    def shop_brands(self, shop_id, page=1, size=20):
+    def shop_brands(self, shop_id, page=1, size=20, *, force=False):
+        """店铺品牌结构：品牌 Top 榜 + 销售额/销量占比（官方 conversionSharing 是 Top10/Top100）。"""
         r = self.c.call("shop_brand", {"id": int(shop_id),
-                                       "page": {"pageNumber": page, "pageSize": size}})
-        return {"rows": ((r.data or {}).get("brands") or {}).get("records") or [],
-                "top": (r.data or {}).get("top"), "cached": r.cached}
+                                       "page": {"pageNumber": int(page or 1),
+                                                "pageSize": min(100, int(size or 20))}},
+                        force=force)
+        d = r.data or {}
+        box = d.get("brands") or {}
+        recs = box.get("records") or []
+        rows = []
+        for x in recs:
+            bi = x.get("brandInfo") or {}
+            rows.append({
+                "name": bi.get("brandName") or "",
+                "brand_id": bi.get("brandId") or x.get("id"),
+                "thumb": bi.get("thumbnailUrl") or "",
+                "revenue": num(x.get("totalRevenues") if x.get("totalRevenues") is not None
+                               else x.get("totalRevenue")),
+                "sales": num(x.get("totalSales")),
+                "revenue_rate": num(x.get("revenueRate")),
+                "sales_rate": num(x.get("salesRate")),
+                "products": num(x.get("products")),
+                "products_with_sales": num(x.get("productsWithSales")),
+                "avg_price": num(x.get("avgPrice")),
+                "avg_revenue": num(x.get("avgRevenue")),
+                "avg_sales": num(x.get("avgSales")),
+                "avg_rating": num(x.get("avgRating")),
+                "avg_reviews": num(x.get("avgReviewCount")),
+                "sellers": num(x.get("sellers")),
+                "sharing": num(x.get("conversionSharing")),
+                "return_rate": num(x.get("returnCancellationRate")),
+            })
+        total_rev = sum(r["revenue"] or 0 for r in rows) or 0
+        for x in rows:
+            x["page_share"] = round((x["revenue"] or 0) / total_rev * 100, 2) if total_rev else None
+        top = d.get("top") or {}
+        return {"rows": rows, "top": {
+                    "total": num(top.get("total")),
+                    "total_revenue": num(top.get("totalRevenue")),
+                    "total_sales": num(top.get("totalSales")),
+                    "revenue_share_top10": num(top.get("revenueShareTop10")),
+                    "sales_share_top10": num(top.get("salesShareTop10")),
+                    "revenues": top.get("revenues") or [],
+                    "sales": top.get("sales") or []},
+                "total": num(box.get("total")), "pages": num(box.get("totalPages")),
+                "page": num(box.get("current")),
+                "cached": r.cached, "cost": r.cost}
 
-    def shop_categories(self, shop_id, page=1, size=20):
+    def shop_categories(self, shop_id, page=1, size=20, *, force=False):
+        """店铺类目结构：该类目下的销售额/销量/商品数/均价。"""
         r = self.c.call("shop_category", {"id": int(shop_id),
-                                          "page": {"pageNumber": page, "pageSize": size}})
-        return {"rows": ((r.data or {}).get("categories") or {}).get("records") or [],
-                "top": (r.data or {}).get("top"), "cached": r.cached}
+                                          "page": {"pageNumber": int(page or 1),
+                                                   "pageSize": min(100, int(size or 20))}},
+                        force=force)
+        d = r.data or {}
+        box = d.get("categories") or {}
+        rows = []
+        for x in box.get("records") or []:
+            ci = x.get("categoryInfo") or {}
+            cat = ci.get("category") or {}
+            rows.append({
+                "category_id": cat.get("id") or x.get("id") or "",
+                "cn": cat.get("cnTitle") or "",
+                "ru": cat.get("title") or "",
+                "cn_path": ci.get("cnTitlePath") or cat.get("cnTitle") or "",
+                "revenue": num(x.get("totalRevenues")),
+                "sales": num(x.get("totalSales")),
+                "revenue_rate": num(x.get("revenueRate")),
+                "sales_rate": num(x.get("salesRate")),
+                "products": num(x.get("products")),
+                "avg_price": num(x.get("avgPrice")),
+            })
+        total_rev = sum(x["revenue"] or 0 for x in rows) or 0
+        for x in rows:
+            x["page_share"] = round((x["revenue"] or 0) / total_rev * 100, 2) if total_rev else None
+        top = d.get("top") or {}
+        return {"rows": rows, "top": {"revenues": top.get("revenues") or [],
+                                      "sales": top.get("sales") or []},
+                "total": num(box.get("total")), "pages": num(box.get("totalPages")),
+                "page": num(box.get("current")),
+                "cached": r.cached, "cost": r.cost}
 
     # ---------- 评论（只读；任务创建必须显式确认） ----------
     def review_stat(self, sku):
         r = self.c.call("review_stat", {"sku": str(sku)})
-        return {"rows": r.data or {}, "cached": r.cached}
+        d = r.data or {}
+        st = d.get("reviewStatistic") or {}
+        return {"rows": d, "statistic": st, "sku": d.get("sku") or str(sku),
+                "title": d.get("title"), "image_url": d.get("imageUrl"),
+                "cached": r.cached, "cost": r.cost}
 
     def review_original(self, sku):
         r = self.c.call("review_original", {"sku": str(sku)})
-        return {"rows": (r.data or {}).get("reviews") or [], "cached": r.cached}
+        d = r.data or {}
+        return {"rows": d.get("reviews") or [], "skus": d.get("skus") or [],
+                "cached": r.cached, "cost": r.cost}
 
     def review_words(self, sku, language="CN"):
         # 文档：sku 为 integer；language 为枚举 CN/EN/RU（不是 zh-CN）
         r = self.c.call("review_words", {"sku": _sku_int(sku), "language": lang_enum(language)})
-        return {"rows": r.data or {}, "language": lang_enum(language), "cached": r.cached}
+        d = r.data or {}
+        return {"rows": d, "origin": d.get("origin") or [],
+                "sinicized": d.get("sinicized") or [],
+                "language": lang_enum(language), "cached": r.cached, "cost": r.cost}
 
     def review_report(self, sku, language="CN"):
         r = self.c.call("review_report", {"sku": _sku_int(sku), "language": lang_enum(language)})
-        return {"rows": r.data or {}, "language": lang_enum(language), "cached": r.cached}
+        d = r.data or {}
+        return {"rows": d, "language": lang_enum(language),
+                "cached": r.cached, "cost": r.cost}
 
     def review_task(self, skus, *, confirm=False):
         """创建评论分析任务：官方单价 200 积分/SKU，默认拒绝，必须 confirm=True。"""

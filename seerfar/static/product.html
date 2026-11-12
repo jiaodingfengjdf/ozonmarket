@@ -63,6 +63,46 @@
         <div class="tablewrap" data-table id="productView"><div class="placeholder"><div class="ph-icon">◈</div>
           <div class="ph-title">还没有查询结果</div><div class="ph-desc">填一个商品 SKU 查看详情</div></div></div>
       </section>
+
+      <section class="resultcard">
+        <div class="resulthead">
+          <div class="resultr"><h3>变体分析</h3><span class="badge solid" data-var-count>0</span><span class="muted" data-var-note></span></div>
+          <div class="resultbar-actions">
+            <button class="btn ghost sm" data-act="var-list">变体列表（约 10 分）</button>
+            <button class="btn ghost sm" data-act="var-chars">特征维度（约 10 分）</button>
+          </div>
+        </div>
+        <div class="statusline" data-var-meta>先查「特征维度」，再点维度名看该维度销售额/销量 Top10（各约 10 分）。</div>
+        <div class="chips" data-var-chars></div>
+        <div class="tablewrap" data-var-table></div>
+      </section>
+
+      <section class="resultcard">
+        <div class="resulthead">
+          <div class="resultr"><h3>评论分析</h3><span class="badge solid" data-rev-count>0</span><span class="muted" data-rev-note></span></div>
+          <div class="resultbar-actions">
+            <select class="insm" data-rev-lang><option value="CN">中文</option><option value="EN">英文</option><option value="RU">俄文</option></select>
+            <button class="btn ghost sm" data-act="rev-stat">星级分布（约 10 分）</button>
+            <button class="btn ghost sm" data-act="rev-words">词频（约 10 分）</button>
+            <button class="btn ghost sm" data-act="rev-original">原始评论（约 10 分）</button>
+            <button class="btn ghost sm" data-act="rev-report">AI 报表（约 10 分）</button>
+            <button class="btn ghost sm" data-act="rev-task">创建分析任务（200 分/SKU）</button>
+          </div>
+        </div>
+        <div class="statusline" data-rev-meta>报表/词频需先对 SKU 创建过分析任务；任务按 200 积分/SKU 计费，会二次确认。</div>
+        <div data-rev-box></div>
+      </section>
+
+      <section class="resultcard">
+        <div class="resulthead">
+          <div class="resultr"><h3>相似商品</h3><span class="badge solid" data-sim-count>0</span><span class="muted" data-sim-note></span></div>
+          <div class="resultbar-actions">
+            <button class="btn ghost sm" data-act="similar">查相似商品（约 10 分）</button>
+          </div>
+        </div>
+        <div class="statusline" data-sim-meta>官方最多返回 21 条（含目标商品），带库存，可用来做竞品对比。</div>
+        <div class="tablewrap" data-sim-table></div>
+      </section>
     </section>
 
   </main>
