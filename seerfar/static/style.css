@@ -727,3 +727,68 @@ a.wchip:active{transform:scale(.97)}
 @media (prefers-color-scheme: dark){
   ::-webkit-scrollbar-thumb{background:rgba(255,255,255,.18);background-clip:content-box}
 }
+/* ==========================================================================
+   v3.1 · 图片模糊渐进 / 数字滚动 / 详情页 hero 视差
+   ========================================================================== */
+
+/* ---------- 1. 图片渐进加载（先模糊占位，加载完清晰化） ---------- */
+.phimg{
+  filter:blur(16px) saturate(1.1);
+  transform:scale(1.06);
+  opacity:.55;
+  background:
+    radial-gradient(120% 90% at 30% 20%,rgba(10,132,255,.10),transparent 60%),
+    linear-gradient(110deg,#eef1f7,#e6ebf4);
+  transition:filter .7s var(--ease),transform .7s var(--ease),opacity .5s var(--ease);
+  will-change:filter,transform,opacity;
+}
+.phimg.loaded{filter:none;transform:none;opacity:1}
+@media (prefers-color-scheme:dark){
+  .phimg{background:linear-gradient(110deg,#1b1b1e,#232327)}
+}
+/* 表格缩略图小一点，模糊半径收一点 */
+.thumb.phimg{filter:blur(8px) scale(1.04)}
+.thumb.phimg.loaded{filter:none;transform:none}
+
+/* ---------- 2. 数字滚动高亮 ---------- */
+.num-tween{color:var(--accent) !important;font-variant-numeric:tabular-nums}
+@keyframes numFlash{0%{background:rgba(10,132,255,.16)}100%{background:transparent}}
+td.num-tween{animation:numFlash .9s var(--ease) both}
+
+/* ---------- 3. 详情页 hero + 视差 ---------- */
+.hero{
+  position:relative;height:clamp(260px,32vw,420px);
+  border-radius:var(--r-xl);overflow:hidden;
+  border:1px solid var(--line);
+  box-shadow:var(--shadow-2);
+  isolation:isolate;
+  animation:riseIn .6s var(--ease) both;
+}
+.hero-img{
+  position:absolute;inset:-8% 0;width:100%;height:116%;
+  object-fit:cover;object-position:center;
+  transform:translate3d(0,0,0) scale(1.12);
+  will-change:transform;
+  transition:transform .12s linear;
+}
+.hero-veil{
+  position:absolute;inset:0;z-index:1;
+  background:
+    linear-gradient(180deg,rgba(0,0,0,.05) 0%,rgba(0,0,0,.15) 45%,rgba(0,0,0,.72) 100%),
+    radial-gradient(80% 60% at 80% 10%,rgba(10,132,255,.28),transparent 60%);
+}
+.hero-meta{
+  position:absolute;left:26px;right:26px;bottom:22px;z-index:2;color:#fff;
+  display:flex;flex-direction:column;gap:6px;
+  text-shadow:0 2px 18px rgba(0,0,0,.45);
+}
+.hero-eyebrow{font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;opacity:.85}
+.hero-meta h2{margin:0;font-size:clamp(20px,2.4vw,30px);line-height:1.2;color:#fff;
+  letter-spacing:-.02em;max-width:70ch}
+.hero-sub{font-size:13px;opacity:.9;display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.hero-sub .hp{font-weight:600;font-size:15px}
+.hero-actions{position:absolute;top:18px;right:18px;z-index:2;display:flex;gap:8px}
+.hero-actions .btn{background:rgba(255,255,255,.16);color:#fff;border-color:rgba(255,255,255,.28);
+  -webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}
+.hero-actions .btn:hover{background:rgba(255,255,255,.26)}
+@media (max-width:640px){ .hero{height:240px;border-radius:18px} .hero-meta{left:16px;right:16px;bottom:14px} }

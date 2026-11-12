@@ -379,7 +379,10 @@
       /* ---------- 单元格渲染 ---------- */
       const RATE_KEYS = new Set(['sales_rate', 'revenue_rate', 'ratings_rate', 'growth30']);
       function cell(row, key) {
-        const v = row[key];
+        let v = row[key];
+        const tag = String(row.sku || row.id || '') + ':' + key;
+        if (Object.prototype.hasOwnProperty.call(tweenVals, tag)) v = tweenVals[tag];
+        const tweening = Object.prototype.hasOwnProperty.call(tweenVals, tag);
         if (key === 'fav') return row._fav ? '★' : '☆';
         if (key === 'img') return '';
         if (key === 'link') return row.url || row.product_url || '';
@@ -388,6 +391,9 @@
         if (COLS.PCT_KEYS.indexOf(key) >= 0 && v != null) return fmt(v) + '%';
         if (typeof v === 'number') return fmt(v);
         return v == null ? '—' : String(v);
+      }
+      function isTweening(row, key) {
+        return Object.prototype.hasOwnProperty.call(tweenVals, String(row.sku || row.id || '') + ':' + key);
       }
       function rateClass(row, key) {
         if (!RATE_KEYS.has(key)) return '';
@@ -439,7 +445,10 @@
       onMounted(async () => {
         window.addEventListener('hashchange', onHash);
         const bar = document.querySelector('.topbar');
-        const onScroll = () => { if (bar) bar.classList.toggle('scrolled', window.scrollY > 6); };
+        const onScroll = () => {
+          if (bar) bar.classList.toggle('scrolled', window.scrollY > 6);
+          heroY.value = Math.min(90, window.scrollY * 0.16);
+        };
         window.addEventListener('scroll', onScroll, { passive: true });
         onScroll();
         refreshStatus();
@@ -516,6 +525,29 @@
       const STAR_CNT = { 5: 'fiveStarCount', 4: 'fourStarCount', 3: 'threeStarCount', 2: 'twoStarCount', 1: 'oneStarCount' };
       const starPct = n => Number(((revData.value || {}).statistic || {})[STAR_PCT[n]] || 0);
       const starCnt = n => ((revData.value || {}).statistic || {})[STAR_CNT[n]];
+      /* 利润计算后的数字滚动：按 sku:key 存中间值，cell() 优先取它 */
+      const tweenVals = reactive({});
+      const TWEEN_KEYS = ['net_profit', 'net_margin', 'breakeven', 'suggested', 'roi', 'chargeable_kg'];
+      function tweenRow(fromRow, toRow) {
+        const key = String(toRow.sku || toRow.id || '');
+        TWEEN_KEYS.forEach(k => {
+          const a = fromRow ? Number(fromRow[k]) : NaN;
+          const b = Number(toRow[k]);
+          if (!isFinite(b)) return;
+          const tag = key + ':' + k;
+          if (!fromRow || !isFinite(a) || a === b) { tweenVals[tag] = b; setTimeout(() => { delete tweenVals[tag]; }, 900); return; }
+          const t0 = performance.now(), dur = 620;
+          const step = (now) => {
+            const pr = Math.min((now - t0) / dur, 1);
+            const e = 1 - Math.pow(1 - pr, 3);
+            tweenVals[tag] = a + (b - a) * e;
+            if (pr < 1) requestAnimationFrame(step);
+            else setTimeout(() => { delete tweenVals[tag]; }, 320);
+          };
+          requestAnimationFrame(step);
+        });
+      }
+
       const sortKey = ref(''), sortDir = ref('desc');
       function sortBy(key) {
         if (!key) return;
@@ -534,6 +566,16 @@
           return String(av == null ? '' : av).localeCompare(String(bv == null ? '' : bv), 'zh-CN') * dir;
         });
       });
+      const heroY = ref(0);
+      const heroImg = computed(() => {
+        const imgs = (content.value || {}).images || [];
+        return imgs[0] || ((product.value || {}).product || {}).image_url || '';
+      });
+      const heroTitle = computed(() => (content.value || {}).title || ((product.value || {}).product || {}).title || '');
+      const heroBrand = computed(() => (content.value || {}).brand || ((product.value || {}).product || {}).brand || '');
+      const heroPrice = computed(() => (content.value || {}).price || ((product.value || {}).product || {}).price);
+      const heroSku = computed(() => (content.value || {}).sku || ((product.value || {}).product || {}).sku || '');
+      function onImgLoad(e) { if (e && e.target) e.target.classList.add('loaded'); }
       const varChars = ref([]), varRows = ref([]), varTopRows = ref([]), varMeta = ref('');
       const simRows = ref([]), simMeta = ref('');
       const revKind = ref('stat'), revData = ref(null), revMeta = ref(''), revLang = ref('CN');
@@ -649,6 +691,8 @@
           const d = j.data || {};
           profitSummary.value = d.summary || null;
           const list = d.rows || [];
+          const prev = new Map((rows.value || []).map(r => [String(r.sku || r.id || ''), r]));
+          list.forEach(r => tweenRow(prev.get(String(r.sku || r.id || '')), r));
           rows.value = profitOnly.value ? list.filter(r => (Number(r.net_profit) || 0) > 0) : list;
           profitMeta.value = '已计算 ' + list.length + ' 行 · 平均真毛利 ' +
             (profitSummary.value && profitSummary.value.avg_net_margin != null ? fmt(profitSummary.value.avg_net_margin) + '%' : '—');
@@ -691,7 +735,7 @@
         toastMsg, toastBad,
         fmt, money, esc, cell, rateClass, run, resetForm, exportXlsx, go, openDrawer, closeDrawer,
         toggleFav, onPresetClick, applyPreset, toggleCatNode, toggleCat, loadContent, formClick, saveCats, refreshStatus,
-        sortKey, sortDir, sortBy, sortedRows,
+        sortKey, sortDir, sortBy, sortedRows, onImgLoad, isTweening, heroY, heroImg, heroTitle, heroBrand, heroPrice, heroSku,
         // 深水区
         VAR_COLS, SIM_COLS, BRAND_COLS, CAT_COLS, PROFIT_KEYS, PROFIT_LABEL, DIM_KEYS, DIM_LABEL,
         varChars, varRows, varTopRows, varMeta, simRows, simMeta,
@@ -863,9 +907,9 @@
             </tr></thead>
             <tbody>
               <tr v-for="(r, i) in sortedRows" :key="i">
-                <td v-for="c in cfg.cols" :key="c[0]" :class="{num: typeof r[c[0]]==='number'}">
+                <td v-for="c in cfg.cols" :key="c[0]" :class="{num: typeof r[c[0]]==='number', 'num-tween': isTweening(r, c[0])}">
                   <template v-if="c[0]==='fav'"><button class="favbtn" :class="{on: r._fav}" @click="toggleFav(r)">{{ r._fav ? '★' : '☆' }}</button></template>
-                  <template v-else-if="c[0]==='img'"><img class="thumb" :src="r.image_url || r.img || ''" loading="lazy" v-if="r.image_url || r.img"></template>
+                  <template v-else-if="c[0]==='img'"><img class="thumb phimg" :src="r.image_url || r.img || ''" loading="lazy" @load="onImgLoad" v-if="r.image_url || r.img"></template>
                   <template v-else-if="c[0]==='sku'"><a class="sku-link" href="javascript:;" @click="openDrawer(r.sku || r.id)">{{ r.sku || r.id }}</a></template>
                   <template v-else-if="c[0]==='link'"><a v-if="r.url || r.product_url" :href="r.url || r.product_url" target="_blank" rel="noopener">打开 ↗</a></template>
                   <template v-else-if="c[0]==='title' || c[0]==='dim' || c[0]==='seller' || c[0]==='brand'"><span class="ttl" :title="String(r[c[0]]||'')" :class="rateClass(r, c[0])">{{ cell(r, c[0]) }}</span></template>
@@ -877,7 +921,7 @@
         </div>
         <div class="cardgrid" v-else>
           <div class="pcard" v-for="(r, i) in rows" :key="i" @click="openDrawer(r.sku || r.id)">
-            <img class="c-img" :src="r.image_url || r.img || ''" loading="lazy" v-if="r.image_url || r.img">
+            <img class="c-img phimg" :src="r.image_url || r.img || ''" loading="lazy" @load="onImgLoad" v-if="r.image_url || r.img">
             <div class="c-body">
               <div class="c-title">{{ r.title || r.query || r.sku }}</div>
               <div class="c-price" v-if="r.price != null">{{ money(r.price) }} ₽</div>
@@ -896,6 +940,22 @@
 
       <!-- 竞品详情 -->
       <template v-if="page.tool === 'product'">
+        <section class="hero" v-if="heroImg">
+          <img class="hero-img phimg" :src="heroImg" :style="{ transform: 'translate3d(0,' + heroY + 'px,0) scale(1.12)' }" @load="onImgLoad" alt="">
+          <div class="hero-veil"></div>
+          <div class="hero-actions">
+            <button class="btn sm" v-if="heroSku" @click="openDrawer(heroSku)">快速查看</button>
+          </div>
+          <div class="hero-meta">
+            <div class="hero-eyebrow">OZON · SKU {{ heroSku || '—' }}</div>
+            <h2>{{ heroTitle || '商品详情' }}</h2>
+            <div class="hero-sub">
+              <span v-if="heroBrand">{{ heroBrand }}</span>
+              <span class="hp" v-if="heroPrice">{{ money(heroPrice) }} ₽</span>
+              <span v-if="content && content.review_count">· ★ {{ fmt(content.rating) }}（{{ fmt(content.review_count) }} 条评论）</span>
+            </div>
+          </div>
+        </section>
         <section class="resultcard" v-if="product">
           <div class="resulthead"><div class="resultr"><h3>竞品数据</h3></div></div>
           <div class="card-grid" style="padding-top:12px">
@@ -928,7 +988,7 @@
             <div class="empty" style="color:var(--bad)" v-else-if="content.error">{{ content.error }}</div>
             <template v-else>
               <h4>图片（{{ (content.images||[]).length }}）</h4>
-              <div class="thumbs"><a v-for="u in (content.images||[]).slice(0,24)" :key="u" :href="u" target="_blank" rel="noopener"><img :src="u" loading="lazy"></a></div>
+              <div class="thumbs"><a v-for="u in (content.images||[]).slice(0,24)" :key="u" :href="u" target="_blank" rel="noopener"><img class="phimg" :src="u" loading="lazy" @load="onImgLoad"></a></div>
               <div class="contenthead"><b>{{ content.title }}</b>
                 <span class="muted">{{ content.brand }}<template v-if="content.rating"> · ★{{ fmt(content.rating) }}</template><template v-if="content.review_count"> · {{ fmt(content.review_count) }} 条评论</template><template v-if="content.price"> · {{ money(content.price) }}₽</template></span>
               </div>
@@ -1112,7 +1172,7 @@
       <div class="empty" style="color:var(--bad)" v-else-if="drawerContent && drawerContent.error">{{ drawerContent.error }}</div>
       <template v-else-if="drawerContent">
         <h4>图片（{{ (drawerContent.images||[]).length }}）</h4>
-        <div class="thumbs"><a v-for="u in (drawerContent.images||[]).slice(0,24)" :key="u" :href="u" target="_blank" rel="noopener"><img :src="u" loading="lazy"></a></div>
+        <div class="thumbs"><a v-for="u in (drawerContent.images||[]).slice(0,24)" :key="u" :href="u" target="_blank" rel="noopener"><img class="phimg" :src="u" loading="lazy" @load="onImgLoad"></a></div>
         <div class="contenthead"><b>{{ drawerContent.title }}</b>
           <span class="muted">{{ drawerContent.brand }}<template v-if="drawerContent.price"> · {{ money(drawerContent.price) }}₽</template></span></div>
         <h4>描述（{{ (drawerContent.description||'').length }} 字）</h4>
