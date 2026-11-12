@@ -104,7 +104,7 @@
       const note = ref('');
       const pageNo = ref(1);
       const pageMeta = ref({});
-      const viewMode = ref(localStorage.getItem('sf_view') || 'table');
+      const viewMode = ref((() => { try { const v = new URLSearchParams(location.search).get('view'); if (v === 'card' || v === 'table') return v; } catch (e) { } return localStorage.getItem('sf_view') || 'table'; })());
       const thumbSize = ref(localStorage.getItem('sf_thumb') || 'l');
       function setThumb(s) { thumbSize.value = s; localStorage.setItem('sf_thumb', s); }
       const formEl = ref(null);
@@ -552,6 +552,7 @@
         } catch (e) { }
         try { const cq = new URLSearchParams(location.search).get('catq'); if (cq) catSearch.value = cq; } catch (e) { }
         loadCats(1).catch(() => { });
+        try { if (new URLSearchParams(location.search).get('run') === '1') setTimeout(() => run().catch(() => { }), 400); } catch (e) { }
         loadFavorites();
         nextTick(wireQuickdates);
       });
