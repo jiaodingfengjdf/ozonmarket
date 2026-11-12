@@ -500,3 +500,7 @@ pre.json{background:#0f1b2e;color:#cfe1ff;border-radius:10px;padding:12px;font-s
 .drawer-content .drawer-loading{padding:14px 4px;color:#5b6b8c;font-size:12.6px;line-height:1.6}
 .drawer-content .drawer-loading:before{content:'';display:inline-block;width:12px;height:12px;margin-right:8px;
   vertical-align:-1px;border:2px solid #cfdcf3;border-top-color:#2563eb;border-radius:50%;animation:spin .9s linear infinite}
+
+/* Seerfar 指标区块（在商品内容之后） */
+.drawer-seerfar{margin-top:18px;padding-top:12px;border-top:1px dashed #e2eaf7}
+.drawer-seerfar h4{margin:12px 0 8px;font-size:12.5px;color:#33456b}

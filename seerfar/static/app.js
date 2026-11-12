@@ -811,14 +811,20 @@ async function doExport(rows, kind, btn) {
 /* ---------- 商品抽屉（表格点 SKU） ---------- */
 async function openDrawer(sku) {
   $('#drawer').classList.remove('hidden'); $('#drawerTitle').textContent = '商品 ' + sku;
-  $('#drawerBody').innerHTML = '<div class="empty">加载中…</div>';
+  // 结构固定：商品内容优先（图片→标题→描述→属性→变体→卖家库存→富文本），Seerfar 指标随后
+  $('#drawerBody').innerHTML =
+    `<div data-drawer-content class="drawer-content">
+       <div class="drawer-loading">正在加载商品内容（图片 / 标题 / 描述 / 属性 / 变体 / 卖家库存 / 富文本）…</div>
+     </div>
+     <div data-drawer-seerfar class="drawer-seerfar"><div class="empty">正在读取 Seerfar 指标…</div></div>`;
+  loadDrawerContent(sku);          // 内容先跑（首次 5~15 秒，之后走缓存）
   try {
     const j = await api('/api/product?sku=' + encodeURIComponent(sku) + '&trend=0');
     const p = j.data.product || {}, s = j.data.summary || {}, t = j.data.trend || [];
-    $('#drawerBody').innerHTML = `
-      <div class="phead">${p.image_url ? `<img src="${esc(p.image_url)}" class="pimg">` : ''}
-        <div><h3>${esc(p.title || sku)}</h3><div class="tiny">${esc(p.brand || '')} · ${esc(p.seller || '')}</div>
-          <div style="margin-top:7px">${p.product_url ? `<a class="btn primary sm" href="${esc(p.product_url)}" target="_blank" rel="noopener">在 Ozon 打开</a>` : ''}</div></div></div>
+    const box = $('[data-drawer-seerfar]');
+    if (!box) return;
+    box.innerHTML = `<h4>Seerfar 指标</h4>
+      ${p.product_url ? `<div style="margin:0 0 8px"><a class="btn primary sm" href="${esc(p.product_url)}" target="_blank" rel="noopener">在 Ozon 打开</a></div>` : ''}
       <div class="card-grid">
         <div class="card"><b>${fmt(p.price)} ₽</b><span>价格</span></div>
         <div class="card"><b>${fmt(s.total_sales)}</b><span>月销量</span></div>
@@ -840,12 +846,13 @@ async function openDrawer(sku) {
         <div>上架天数</div><div>${fmt(p.up_days)}</div>
         <div>店铺类型</div><div>${esc(p.seller_type_text || '—')}</div>
         <div>配送</div><div>${esc(p.fulfillment_text || '—')}</div></div>
-      <h4 style="margin:16px 0 8px;font-size:12.5px">日销量趋势（${t.length} 天）</h4>
-      ${t.length ? sparkline(t, 'sales', '#2563eb', '日销量') : '<div class="empty">未查询趋势（抽屉默认省积分，需要看趋势请在「竞品详情」页查）</div>'}
-      <div data-drawer-content class="drawer-content"><div class="empty">正在读取商品内容（属性/描述/图片）…</div></div>`;
+      <h4>日销量趋势（${t.length} 天）</h4>
+      ${t.length ? sparkline(t, 'sales', '#2563eb', '日销量') : '<div class="empty">未查询趋势（抽屉默认省积分，需要看趋势请在「竞品详情」页查）</div>'}`;
     refreshStatus();
-    loadDrawerContent(sku);
-  } catch (e) { $('#drawerBody').innerHTML = `<div class="empty" style="color:var(--bad)">${esc(e.message)}</div>`; }
+  } catch (e) {
+    const box = $('[data-drawer-seerfar]');
+    if (box) box.innerHTML = `<h4>Seerfar 指标</h4><div class="empty" style="color:var(--bad)">${esc(e.message)}</div>`;
+  }
 }
 $('#drawerClose').addEventListener('click', () => $('#drawer').classList.add('hidden'));
 $('#drawer').addEventListener('click', e => { if (e.target.id === 'drawer') e.currentTarget.classList.add('hidden'); });
