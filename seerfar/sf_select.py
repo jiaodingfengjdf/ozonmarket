@@ -122,6 +122,24 @@ def _page(page=1, size=20, field="revenue", direction="DESC", allowed=None):
             "orders": [{"field": field, "direction": direction}]}
 
 
+
+def _search_date(v):
+    """历史月份 → yyyy-MM-01。
+
+    文档：searchDate 需为 yyyy-MM-dd，且必须是每月 1 日；传 2026-04-01 实际查询 2026 年 3 月。
+    UI 允许输入 yyyy-MM，这里统一补 -01，并校验月份合法。
+    """
+    s = str(v or "").strip()
+    if not s:
+        return None
+    m = re.match(r"^(\d{4})-(\d{1,2})(?:-(\d{1,2}))?$", s)
+    if not m:
+        raise ValueError("历史月份格式应为 YYYY-MM（如 2026-04）或 YYYY-MM-01")
+    y, mo = int(m.group(1)), int(m.group(2))
+    if not 1 <= mo <= 12:
+        raise ValueError(f"历史月份不合法：{s}")
+    return f"{y:04d}-{mo:02d}-01"
+
 def _pages_of(f: dict, hard_max=10) -> int:
     """本次请求要抓多少页（1~10）。官方单页上限 100 条，多页会按页计费。"""
     try:
@@ -411,8 +429,9 @@ class Selector:
             body["labels"] = [int(x) for x in as_list(f["labels"])]
         if f.get("creation_date") not in (None, "", 0):
             body["creationDate"] = int(f["creation_date"])
-        if f.get("search_date"):
-            body["searchDate"] = f["search_date"]
+        sd = _search_date(f.get("search_date"))
+        if sd:
+            body["searchDate"] = sd
         skus = _extract_skus(f.get("skus") or f.get("product_ids") or "")
         if skus:
             body["skus"] = skus
@@ -614,8 +633,9 @@ class Selector:
             body["keywords"] = list(f["keywords"])
         elif f.get("keyword"):
             body["keywords"] = [f["keyword"]]
-        if f.get("search_date"):
-            body["searchDate"] = f["search_date"]
+        sd = _search_date(f.get("search_date"))
+        if sd:
+            body["searchDate"] = sd
         return self._keyword_call("market", body, "market", force, _pages_of(f))
 
     def mining(self, keyword: str, f: dict | None = None, *, force=False) -> dict:

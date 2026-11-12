@@ -187,10 +187,9 @@ def t_wiring():
     check("Vue 有收藏切换", "favorites/toggle" in js)
     check("Vue 有利润调用", "/api/profit" in js)
     check("Vue 表格有收藏列", "\"fav\"" in cols and "\"favbtn\"" in (ROOT / "static" / "vue" / "app.js").read_text(encoding="utf-8"))
-    check("Seerfar 结果表保留 重量/体积/尺寸 三列",
-          "重量g" in cols and "体积L" in cols and "尺寸" in cols)
-    check("重量/尺寸过滤只作用于 composer 内容（sf_content）",
-          "WEIGHT_DIM_RX" in (ROOT / "sf_content.py").read_text(encoding="utf-8"))
+    check("Seerfar 结果表保留 重量/体积，尺寸拆为长宽高三列",
+          '"weight"' in cols and '"volume"' in cols
+          and '"length"' in cols and '"width"' in cols and '"height"' in cols)
 
 
 if __name__ == "__main__":
