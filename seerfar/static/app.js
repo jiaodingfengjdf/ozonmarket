@@ -15,6 +15,7 @@ const money = v => v == null ? '—' : Number(v).toLocaleString('zh-CN', { maxim
 /* ---------- 列定义（顺序 = 展示顺序：基础+产品数据 → 价格销售 → 口碑售后 → 流量转化漏斗 → 广告促销 → 上架/变体 → 综合） ---------- */
 const RESULT_COLS = [
   ['fav', ''], ['img', ''], ['sku', 'SKU'], ['title', '商品标题'],
+  ['weight', '重量g'], ['volume', '体积L'], ['dimension', '尺寸'],
   ['category_cn', '类目'], ['brand', '品牌'], ['seller', '店铺'],
   ['seller_type_text', '卖家类型'], ['fulfillment_text', '配送'],
   ['price', '价格 ₽'], ['discount', '平均折扣%'], ['sales', '月销量'], ['sales_rate', '销量环比%'],
@@ -818,6 +819,9 @@ async function openDrawer(sku) {
       <div class="kv">
         <div>中文类目</div><div>${esc(p.category_cn || '—')}</div>
         <div>类目 ID</div><div>${esc(p.category_id || '—')}</div>
+        <div>重量</div><div>${p.weight == null ? '—' : fmt(p.weight) + ' g'}</div>
+        <div>体积</div><div>${p.volume == null ? '—' : fmt(p.volume) + ' L'}</div>
+        <div>尺寸</div><div>${esc(p.dimension || '—')}</div>
         <div>毛利率</div><div>${fmt(p.gross_margin)} %</div>
         <div>广告份额 DRR</div><div>${fmt(p.drr)} %</div>
         <div>加购率</div><div>${fmt(p.conv_to_cart_pdp)} %</div>

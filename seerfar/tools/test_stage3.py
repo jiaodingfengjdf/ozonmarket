@@ -186,6 +186,10 @@ def t_wiring():
     check("app.js 有收藏切换", "favorites/toggle" in js)
     check("app.js 有利润调用", "/api/profit" in js)
     check("表格有收藏列", "['fav', '']" in js)
+    check("Seerfar 结果表保留 重量/体积/尺寸 三列",
+          "['weight', '重量g']" in js and "['volume', '体积L']" in js and "['dimension', '尺寸']" in js)
+    check("重量/尺寸过滤只作用于 composer 内容（sf_content）",
+          "WEIGHT_DIM_RX" in (ROOT / "sf_content.py").read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":
