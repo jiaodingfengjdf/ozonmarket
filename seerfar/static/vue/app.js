@@ -690,7 +690,7 @@
   </div>
 
   <div class="pagenav"><div class="pagenav-inner">
-    <a v-for="n in nav" :key="n.href" class="pnav" :class="{active: route === n.href.replace('/app/#','')}" :href="n.href">{{ n.label }}</a>
+    <a v-for="n in nav" :key="n.href" class="pnav" :class="{active: route === n.href.replace('/app/#','')}" :href="'#' + n.href.replace('/app/#','')">{{ n.label }}</a>
   </div></div>
 
   <div class="layout" :class="{'no-sidebar': page.tool !== 'select'}">

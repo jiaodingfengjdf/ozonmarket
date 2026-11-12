@@ -122,18 +122,18 @@ class Handler(BaseHTTPRequestHandler):
     # 10 个独立功能页面（干净 URL → static/ 下的 HTML）
 
     PAGES = {
-        "/": "index.html",
-        "/index.html": "index.html",
-        "/select": "index.html",
-        "/hotwords": "hotwords.html",
-        "/mining": "mining.html",
-        "/backsearch": "backsearch.html",
-        "/product": "product.html",
-        "/category": "category.html",
-        "/shop": "shop.html",
-        "/local-products": "local-products.html",
-        "/local-keywords": "local-keywords.html",
-        "/logs": "logs.html",
+        "/": "vue/index.html",
+        "/index.html": "vue/index.html",
+        "/select": "vue/index.html",
+        "/hotwords": "vue/index.html",
+        "/mining": "vue/index.html",
+        "/backsearch": "vue/index.html",
+        "/product": "vue/index.html",
+        "/category": "vue/index.html",
+        "/shop": "vue/index.html",
+        "/local-products": "vue/index.html",
+        "/local-keywords": "vue/index.html",
+        "/logs": "vue/index.html",
     }
 
     def do_GET(self):

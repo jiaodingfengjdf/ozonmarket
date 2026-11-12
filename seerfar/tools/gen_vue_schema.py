@@ -91,6 +91,11 @@ FILES = [
 
 
 def main():
+    missing = [fn for fn, _ in FILES if not (STATIC / fn).exists()]
+    if missing:
+        print("旧静态页面已移除（%d/%d 缺失），schema.js 为唯一事实来源，跳过生成。" % (len(missing), len(FILES)))
+        print("如需重建筛选表单，请改 static/vue/schema.js 或恢复旧 HTML 后重跑。")
+        return
     pages = []
     for fn, path in FILES:
         f = STATIC / fn

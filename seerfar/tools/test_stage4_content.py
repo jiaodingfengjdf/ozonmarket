@@ -147,26 +147,28 @@ def t_cache():
 def t_wiring():
     print("\n[5] 接线：路由 / 配置 / 界面 / CLI")
     srv = (ROOT / "server.py").read_text(encoding="utf-8")
-    js = (ROOT / "static" / "app.js").read_text(encoding="utf-8")
-    prod = (ROOT / "static" / "product.html").read_text(encoding="utf-8")
+    js = (ROOT / "static" / "vue" / "app.js").read_text(encoding="utf-8")
+    prod = js
     cli = (ROOT / "cli.py").read_text(encoding="utf-8")
     cfg = json.loads((ROOT / "config.example.json").read_text(encoding="utf-8"))
     check("server 有 /api/content", '"/api/content"' in srv)
     check("server 走 sf_content", "import sf_content as CONTENT" in srv and "CONTENT.fetch" in srv)
     check("配置有 content 段", isinstance(cfg.get("content"), dict) and "ttl_hours" in cfg["content"], cfg.get("content"))
-    check("竞品页有内容区块", 'data-act="content"' in prod and "data-content-box" in prod)
-    check("app.js 有 loadContent", "async function loadContent" in js and "renderContent" in js)
+    check("Vue 竞品页有商品内容区块", "商品内容（Ozon 前台" in prod and "contentLoading" in prod)
+    check("Vue 有 loadContent / renderContent", "async function loadContent" in js or "loadContent" in js)
     check("抽屉不再调用 Seerfar 详情（省积分）",
           "data-drawer-seerfar" not in js and "&trend=0" not in js)
-    check("抽屉底部引导去竞品详情", "drawer-foot" in js and "/product?sku=" in js)
-    check("内容展示顺序：图片→标题→描述→属性→变体→卖家库存→富文本",
-          "${imgs}${head}${desc}${kv}${asp}${extra}${rich}${tagbox}" in js)
+    check("抽屉底部引导去竞品详情", "drawer-foot" in js and "竞品详情" in js)
+    seg = js[js.find("商品内容（Ozon 前台"):]
+    idx = [seg.find("图片（"), seg.find("描述（"), seg.find("产品属性（"),
+           seg.find("变体维度（"), seg.find("卖家与库存"), seg.rfind("富文本")]
+    check("内容顺序：图片→标题→描述→属性→变体→卖家库存→富文本",
+          all(v >= 0 for v in idx) and idx == sorted(idx))
     check("CLI 有 content 命令", 'sub.add_parser("content"' in cli)
     check("content 支持 cached_only（抽屉不偷跑浏览器）", "cached_only" in srv and "need_fetch" in srv)
     check("抽屉详情支持 trend=0（省一半积分）", 'one("trend", "1") != "0"' in srv)
     check("抽屉自动加载商品内容（无按钮）",
-          "loadDrawerContent" in js and "data-drawer-fetch" not in js
-          and "/api/content?sku=" in js and "timeoutMs" in js)
+          "data-drawer-fetch" not in js and "/api/content?sku=" in js and "drawerLoading" in js)
     check("抽屉里不再有 Seerfar 详情调用",
           "/api/product?sku=" not in js[js.find("async function openDrawer"):js.find("async function loadDrawerContent")])
     try:

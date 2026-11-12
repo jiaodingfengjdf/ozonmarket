@@ -203,15 +203,14 @@ def t_wiring():
     srv = (ROOT / "server.py").read_text(encoding="utf-8")
     for route in ("/api/shop/brands", "/api/shop/categories", "/api/similar"):
         check(f"server 路由 {route}", route in srv)
-    shop = (ROOT / "static" / "shop.html").read_text(encoding="utf-8")
-    prod = (ROOT / "static" / "product.html").read_text(encoding="utf-8")
-    js = (ROOT / "static" / "app.js").read_text(encoding="utf-8")
-    check("店铺页有品牌/类目按钮", 'data-act="shop-brands"' in shop and 'data-act="shop-cats"' in shop)
-    check("竞品页有变体/评论按钮", 'data-act="var-list"' in prod and 'data-act="rev-stat"' in prod)
-    check("竞品页有相似商品按钮", 'data-act="similar"' in prod)
-    for act in ("shop-brands", "shop-cats", "var-list", "var-chars", "rev-stat", "rev-words",
-                "rev-original", "rev-report", "rev-task", "similar"):
-        check(f"app.js 处理 {act}", f"'{act}':" in js)
+    shop = (ROOT / "static" / "vue" / "app.js").read_text(encoding="utf-8")
+    prod = (ROOT / "static" / "vue" / "app.js").read_text(encoding="utf-8")
+    js = (ROOT / "static" / "vue" / "app.js").read_text(encoding="utf-8")
+    check("Vue 店铺页有品牌/类目按钮", "loadShopBrands" in shop and "loadShopCats" in shop)
+    check("Vue 竞品页有变体/评论按钮", "loadVarChars" in prod and "loadReview" in prod)
+    check("Vue 竞品页有相似商品按钮", "loadSimilar" in prod)
+    for act in ("loadShopBrands","loadShopCats","loadVarList","loadVarChars","loadVarTop","loadReview","loadSimilar","loadContent","runProfit","exportReport"):
+        check(f"Vue 处理 {act}", act in js)
 
 
 if __name__ == "__main__":
