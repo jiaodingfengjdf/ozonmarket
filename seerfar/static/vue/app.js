@@ -442,7 +442,8 @@
         pageNo.value = 1; rows.value = []; note.value = ''; product.value = null; content.value = null;
         nextTick(wireQuickdates);
       }
-      watch(page, () => { nextTick(() => { wireQuickdates(); }); });
+      watch(page, () => { nextTick(() => { wireQuickdates(); updateHScroll(); }); });
+      watch([rows, thumbSize, viewMode], () => { nextTick(updateHScroll); });
 
       onMounted(async () => {
         window.addEventListener('hashchange', onHash);
@@ -452,6 +453,7 @@
           heroY.value = Math.min(90, window.scrollY * 0.16);
         };
         window.addEventListener('scroll', onScroll, { passive: true });
+        window.addEventListener('resize', () => updateHScroll());
         onScroll();
         refreshStatus();
         try {
@@ -568,6 +570,55 @@
           return String(av == null ? '' : av).localeCompare(String(bv == null ? '' : bv), 'zh-CN') * dir;
         });
       });
+      /* ---------- 表格横向滚动：页面底部浮动条 ---------- */
+      const tableWrap = ref(null), hTrack = ref(null);
+      const hOn = ref(false), hThumbW = ref(80), hThumbX = ref(0), hOverflow = ref(0);
+      function updateHScroll() {
+        const el = tableWrap.value, tr = hTrack.value;
+        if (!el || !tr) { hOn.value = false; return; }
+        const overflow = el.scrollWidth - el.clientWidth;
+        hOverflow.value = overflow;
+        if (overflow <= 4) { hOn.value = false; return; }
+        hOn.value = true;
+        const trackW = tr.clientWidth || 1;
+        const ratio = el.clientWidth / el.scrollWidth;
+        hThumbW.value = Math.max(36, Math.round(trackW * ratio));
+        const maxX = Math.max(0, trackW - hThumbW.value);
+        hThumbX.value = overflow ? (el.scrollLeft / overflow) * maxX : 0;
+      }
+      function onTableScroll() { updateHScroll(); }
+      function syncFromTable() {
+        const el = tableWrap.value; if (!el) return;
+        const tr = hTrack.value; if (!tr) return;
+        const maxX = Math.max(1, tr.clientWidth - hThumbW.value);
+        el.scrollLeft = (hThumbX.value / maxX) * hOverflow.value;
+      }
+      let _drag = null;
+      function thumbDown(e) {
+        e.preventDefault();
+        _drag = { x: e.clientX, left: hThumbX.value };
+        window.addEventListener('pointermove', thumbMove);
+        window.addEventListener('pointerup', thumbUp, { once: true });
+      }
+      function thumbMove(e) {
+        if (!_drag) return;
+        const tr = hTrack.value; if (!tr) return;
+        const maxX = Math.max(1, tr.clientWidth - hThumbW.value);
+        hThumbX.value = Math.min(maxX, Math.max(0, _drag.left + (e.clientX - _drag.x)));
+        syncFromTable();
+      }
+      function thumbUp() {
+        _drag = null;
+        window.removeEventListener('pointermove', thumbMove);
+      }
+      function trackDown(e) {
+        const tr = hTrack.value; if (!tr) return;
+        const rect = tr.getBoundingClientRect();
+        const x = e.clientX - rect.left - hThumbW.value / 2;
+        const maxX = Math.max(1, tr.clientWidth - hThumbW.value);
+        hThumbX.value = Math.min(maxX, Math.max(0, x));
+        syncFromTable();
+      }
       const heroY = ref(0);
       const heroImg = computed(() => {
         const imgs = (content.value || {}).images || [];
@@ -731,7 +782,8 @@
       }
       return {
         nav, page, cfg, route, status, loading, rows, note, pageNo, pageMeta, viewMode,
-        formEl, quickDays, activePreset, cats, thumbSize, setThumb, catFiltered, catSearch, catPanelOpen, selectedCats,
+        formEl, quickDays, activePreset, cats, thumbSize, setThumb,
+        tableWrap, hTrack, hOn, hThumbW, hThumbX, thumbDown, trackDown, onTableScroll, catFiltered, catSearch, catPanelOpen, selectedCats,
         product, content, contentLoading, rich, extraRows, drawerRich, drawerExtra,
         drawerOpen, drawerSku, drawerContent, drawerLoading,
         toastMsg, toastBad,
@@ -890,7 +942,7 @@
           </div>
         </div>
         <div class="statusline" v-html="note || page.resultHint"></div>
-        <div class="tablewrap" v-if="viewMode==='table'">
+        <div class="tablewrap" ref="tableWrap" v-if="viewMode==='table'" @scroll.passive="onTableScroll">
           <table v-if="loading && !rows.length">
             <thead><tr><th v-for="c in cfg.cols.slice(0, 7)" :key="c[0]">{{ c[1] }}</th></tr></thead>
             <tbody>
@@ -1166,6 +1218,15 @@
             <template v-if="f.seller"> · {{ f.seller }}</template></div>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- 表格横向浮动滚动条 -->
+  <div class="hscroll" :class="{on: hOn && viewMode==='table' && rows.length}">
+    <div class="hlabel">← 拖动横向浏览全部列 →</div>
+    <div class="hscroll-track" ref="hTrack" @pointerdown="trackDown">
+      <div class="hscroll-thumb" :style="{ width: hThumbW + 'px', transform: 'translateX(' + hThumbX + 'px)' }"
+           @pointerdown.stop="thumbDown"></div>
     </div>
   </div>
 

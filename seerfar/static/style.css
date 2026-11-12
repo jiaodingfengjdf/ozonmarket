@@ -802,3 +802,38 @@ td.num-tween{animation:numFlash .9s var(--ease) both}
 .tablewrap tbody td{padding-top:6px;padding-bottom:6px}
 .tablewrap tbody tr:has(.sz-m) td{padding-top:8px;padding-bottom:8px}
 .tablewrap tbody tr:has(.sz-l) td{padding-top:10px;padding-bottom:10px}
+/* ==========================================================================
+   表格横向滚动：页面底部浮动滚动条
+   ========================================================================== */
+.hscroll{
+  position:fixed;left:50%;bottom:16px;transform:translateX(-50%);
+  width:min(72vw,920px);height:14px;z-index:70;
+  padding:4px 10px;border-radius:var(--pill);
+  background:rgba(255,255,255,.78);
+  -webkit-backdrop-filter:saturate(180%) blur(18px);
+  backdrop-filter:saturate(180%) blur(18px);
+  border:1px solid var(--line);
+  box-shadow:0 12px 32px -18px rgba(0,0,0,.45);
+  opacity:0;pointer-events:none;
+  transition:opacity .35s var(--ease),transform .35s var(--ease);
+}
+.hscroll.on{opacity:1;pointer-events:auto}
+.hscroll:hover{transform:translateX(-50%) translateY(-2px)}
+.hscroll-track{position:relative;height:6px;border-radius:var(--pill);background:rgba(0,0,0,.07);cursor:pointer}
+.hscroll-thumb{
+  position:absolute;top:0;height:6px;border-radius:var(--pill);
+  background:linear-gradient(90deg,var(--accent-2),var(--accent));
+  box-shadow:0 2px 8px -2px rgba(0,113,227,.8);
+  cursor:grab;transition:background .2s var(--ease);
+}
+.hscroll-thumb:active{cursor:grabbing;background:linear-gradient(90deg,var(--accent),#0055c4)}
+.hscroll .hlabel{
+  position:absolute;top:-20px;left:50%;transform:translateX(-50%);
+  font-size:10.5px;color:var(--muted);white-space:nowrap;opacity:0;transition:opacity .2s
+}
+.hscroll:hover .hlabel{opacity:1}
+@media (prefers-color-scheme:dark){
+  .hscroll{background:rgba(28,28,30,.82)}
+  .hscroll-track{background:rgba(255,255,255,.10)}
+}
+@media (max-width:640px){ .hscroll{width:92vw;bottom:10px} }
