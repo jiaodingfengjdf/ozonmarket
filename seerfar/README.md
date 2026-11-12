@@ -535,6 +535,8 @@ seerfar/tools/launch_chrome.ps1       旧 web/：按真实 Chrome 版本生成 U
 
 **按你的要求：不要重量 / 长宽高**——属性名命中 `вес|длин|ширин|высот|глубин|габарит|weight|length|width|height|depth|dimension` 的一律丢弃（`Размер` 保留，可能是服装尺码），`extra` 也不再输出这些字段；**只影响 composer 拿到的内容**；Seerfar 自己的 重量g / 体积L / 尺寸 列保持不动（利润模型的计费重还要用）。
 
+**抽屉只展示 0 积分内容**：点 SKU 打开的右抽屉不再调用 Seerfar 竞品详情（原来一次约 9~10 积分），只显示 composer 抓来的 图片→标题→描述→属性→变体→卖家库存→富文本；想看 Seerfar 指标点抽屉底部链接去「竞品详情」页（那里会明确消耗积分）。
+
 接口与缓存不变：`GET /api/content?sku=&refresh=1`、表 `product_content`（默认 72h）。抽屉与「商品内容」卡片现在多出「卖家与库存」区块和富文本块渲染。
 
 ---

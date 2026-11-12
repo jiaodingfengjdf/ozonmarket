@@ -808,51 +808,19 @@ async function doExport(rows, kind, btn) {
   } catch (e) { toast(e.message, true); } finally { busy(btn, false, '导出 XLSX'); }
 }
 
-/* ---------- 商品抽屉（表格点 SKU） ---------- */
+/* ---------- 商品抽屉（表格点 SKU）：只展示 0 积分的 Ozon 内容 ---------- */
 async function openDrawer(sku) {
   $('#drawer').classList.remove('hidden'); $('#drawerTitle').textContent = '商品 ' + sku;
-  // 结构固定：商品内容优先（图片→标题→描述→属性→变体→卖家库存→富文本），Seerfar 指标随后
+  // 抽屉不调用 Seerfar（查一次竞品详情约 9~10 积分），只展示 composer 抓来的内容
   $('#drawerBody').innerHTML =
     `<div data-drawer-content class="drawer-content">
        <div class="drawer-loading">正在加载商品内容（图片 / 标题 / 描述 / 属性 / 变体 / 卖家库存 / 富文本）…</div>
      </div>
-     <div data-drawer-seerfar class="drawer-seerfar"><div class="empty">正在读取 Seerfar 指标…</div></div>`;
-  loadDrawerContent(sku);          // 内容先跑（首次 5~15 秒，之后走缓存）
-  try {
-    const j = await api('/api/product?sku=' + encodeURIComponent(sku) + '&trend=0');
-    const p = j.data.product || {}, s = j.data.summary || {}, t = j.data.trend || [];
-    const box = $('[data-drawer-seerfar]');
-    if (!box) return;
-    box.innerHTML = `<h4>Seerfar 指标</h4>
-      ${p.product_url ? `<div style="margin:0 0 8px"><a class="btn primary sm" href="${esc(p.product_url)}" target="_blank" rel="noopener">在 Ozon 打开</a></div>` : ''}
-      <div class="card-grid">
-        <div class="card"><b>${fmt(p.price)} ₽</b><span>价格</span></div>
-        <div class="card"><b>${fmt(s.total_sales)}</b><span>月销量</span></div>
-        <div class="card"><b>${money(s.total_revenue)}</b><span>月销售额 ₽</span></div>
-        <div class="card"><b>${fmt(p.review_rating)}</b><span>评分</span></div>
-        <div class="card"><b>${fmt(p.review_count)}</b><span>评论数</span></div>
-        <div class="card"><b>${fmt(s.stock)}</b><span>库存</span></div>
-      </div>
-      <div class="kv">
-        <div>中文类目</div><div>${esc(p.category_cn || '—')}</div>
-        <div>类目 ID</div><div>${esc(p.category_id || '—')}</div>
-        <div>重量</div><div>${p.weight == null ? '—' : fmt(p.weight) + ' g'}</div>
-        <div>体积</div><div>${p.volume == null ? '—' : fmt(p.volume) + ' L'}</div>
-        <div>尺寸</div><div>${esc(p.dimension || '—')}</div>
-        <div>毛利率</div><div>${fmt(p.gross_margin)} %</div>
-        <div>广告份额 DRR</div><div>${fmt(p.drr)} %</div>
-        <div>加购率</div><div>${fmt(p.conv_to_cart_pdp)} %</div>
-        <div>曝光量</div><div>${fmt(p.session_count_search)}</div>
-        <div>上架天数</div><div>${fmt(p.up_days)}</div>
-        <div>店铺类型</div><div>${esc(p.seller_type_text || '—')}</div>
-        <div>配送</div><div>${esc(p.fulfillment_text || '—')}</div></div>
-      <h4>日销量趋势（${t.length} 天）</h4>
-      ${t.length ? sparkline(t, 'sales', '#2563eb', '日销量') : '<div class="empty">未查询趋势（抽屉默认省积分，需要看趋势请在「竞品详情」页查）</div>'}`;
-    refreshStatus();
-  } catch (e) {
-    const box = $('[data-drawer-seerfar]');
-    if (box) box.innerHTML = `<h4>Seerfar 指标</h4><div class="empty" style="color:var(--bad)">${esc(e.message)}</div>`;
-  }
+     <div class="drawer-foot">
+       想看 Seerfar 指标（价格/销量/流量/趋势，约 9~10 积分/次）请到
+       <a class="link" href="/product?sku=${encodeURIComponent(sku)}">竞品详情页</a> 查询。
+     </div>`;
+  loadDrawerContent(sku);
 }
 $('#drawerClose').addEventListener('click', () => $('#drawer').classList.add('hidden'));
 $('#drawer').addEventListener('click', e => { if (e.target.id === 'drawer') e.currentTarget.classList.add('hidden'); });
@@ -1361,6 +1329,11 @@ refreshStatus();
 loadFavorites();
 restoreProfitParams();
 bindSidebar();
+if (state.tool === 'product') {
+  const _sku = new URLSearchParams(location.search).get('sku');
+  const _el = $('form[data-tool="product"] [data-f="sku"]');
+  if (_sku && _el) _el.value = _sku;
+}
 if ($('#catTree')) {
   loadCats();
   loadTree();

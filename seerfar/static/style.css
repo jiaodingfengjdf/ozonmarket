@@ -504,3 +504,7 @@ pre.json{background:#0f1b2e;color:#cfe1ff;border-radius:10px;padding:12px;font-s
 /* Seerfar 指标区块（在商品内容之后） */
 .drawer-seerfar{margin-top:18px;padding-top:12px;border-top:1px dashed #e2eaf7}
 .drawer-seerfar h4{margin:12px 0 8px;font-size:12.5px;color:#33456b}
+
+/* 抽屉底部提示（0 积分说明 + 去竞品详情） */
+.drawer-foot{margin-top:14px;padding-top:10px;border-top:1px solid #eef3fb;color:#7a89a8;font-size:12px;line-height:1.65}
+.drawer-foot .link{color:#2563eb}

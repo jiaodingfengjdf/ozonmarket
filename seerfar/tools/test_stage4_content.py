@@ -156,8 +156,9 @@ def t_wiring():
     check("配置有 content 段", isinstance(cfg.get("content"), dict) and "ttl_hours" in cfg["content"], cfg.get("content"))
     check("竞品页有内容区块", 'data-act="content"' in prod and "data-content-box" in prod)
     check("app.js 有 loadContent", "async function loadContent" in js and "renderContent" in js)
-    check("抽屉先内容后 Seerfar 指标",
-          js.index("data-drawer-content") < js.index("data-drawer-seerfar"))
+    check("抽屉不再调用 Seerfar 详情（省积分）",
+          "data-drawer-seerfar" not in js and "&trend=0" not in js)
+    check("抽屉底部引导去竞品详情", "drawer-foot" in js and "/product?sku=" in js)
     check("内容展示顺序：图片→标题→描述→属性→变体→卖家库存→富文本",
           "${imgs}${head}${desc}${kv}${asp}${extra}${rich}${tagbox}" in js)
     check("CLI 有 content 命令", 'sub.add_parser("content"' in cli)
@@ -166,7 +167,8 @@ def t_wiring():
     check("抽屉自动加载商品内容（无按钮）",
           "loadDrawerContent" in js and "data-drawer-fetch" not in js
           and "/api/content?sku=" in js and "timeoutMs" in js)
-    check("抽屉详情不再连带查趋势", "&trend=0" in js)
+    check("抽屉里不再有 Seerfar 详情调用",
+          "/api/product?sku=" not in js[js.find("async function openDrawer"):js.find("async function loadDrawerContent")])
     try:
         chrome = C.find_chrome({})
         check("能定位到本机浏览器", bool(chrome), chrome)
