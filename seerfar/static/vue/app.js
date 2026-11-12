@@ -500,15 +500,20 @@
       });
       /* 搜索：走后端全库检索（10k 类目），而不是只过滤已加载的一级节点 */
       /* 卡片视图展示的商品明细字段（与表格列同一套 key） */
+      /* 卡片只展示售卖/流量相关字段（按运营给的列顺序） */
       const CARD_FIELDS = [
-        ['sales', '月销', 'num'], ['revenue', '月销额 ₽', 'money'],
-        ['gross_margin', '毛利率', 'pct'], ['drr', 'DRR', 'pct'],
-        ['review_count', '评论数', 'num'], ['review_rating', '评分', 'num'],
-        ['weight', '重量 g', 'num'], ['volume', '体积 L', 'num'],
-        ['length', '长 mm', 'num'], ['width', '宽 mm', 'num'], ['height', '高 mm', 'num'],
-        ['up_time_date', '上架', 'text'], ['variants', '变体数', 'num'],
-        ['seller_type_text', '卖家类型', 'text'], ['fulfillment_text', '配送', 'text'],
-        ['category_cn', '类目', 'text'], ['brand', '品牌', 'text'], ['seller', '店铺', 'text']
+        ['discount', '平均折扣', 'pct'],
+        ['sales', '月销量', 'num'], ['sales_rate', '销量环比', 'pct'],
+        ['revenue', '月销售额 ₽', 'money'], ['revenue_rate', '销售额增长', 'pct'],
+        ['gross_margin', '毛利率', 'pct'],
+        ['review_count', '评论数', 'num'], ['review_rating', '评分', 'num'], ['qa', '问答数', 'num'],
+        ['return_cancellation_rate', '退货取消率', 'pct'],
+        ['views', '展示总量', 'num'], ['session_count_search', '曝光量', 'num'],
+        ['session_count', '产品卡浏览', 'num'],
+        ['conv_to_cart_search', '搜索加购率', 'pct'], ['conv_to_cart_pdp', '购物车转化率', 'pct'],
+        ['conv_view_to_order', '展示转化', 'pct'], ['order_conversion_rate', '订单转化', 'pct'],
+        ['drr', '广告份额', 'pct'], ['promo_revenue_share', '促销占比', 'pct'],
+        ['up_time_date', '上架时间', 'text']
       ];
       const catHits = ref([]), catSearching = ref(false);
       const autoIds = computed(() => new Set(selectedCats.value.filter(c => c.auto).map(c => c.id)));
@@ -1078,7 +1083,7 @@
                 </template>
               </div>
             </div>
-            <div class="c-foot"><span class="tiny">{{ r.seller || r.brand || '' }}</span><span class="score" v-if="r.opportunity != null">{{ fmt(r.opportunity) }}</span></div>
+            <div class="c-foot"><span class="tiny">机会分</span><span class="score" v-if="r.opportunity != null">{{ fmt(r.opportunity) }}</span></div>
           </div>
         </div>
       </section>
