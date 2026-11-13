@@ -271,6 +271,11 @@
             if (d.local_filter && d.local_filter.fields && d.local_filter.fields.length) {
               text += '<br><span class="warn">' + esc(d.local_filter.fields.join(' / ')) + ' 只能本地过滤</span>';
             }
+            const ov = d.overview || {};
+            if (ov.start_date || ov.end_date || ov.date_mode) {
+              text += '<br><span class="muted">数据窗口 ' + esc(ov.start_date || '?') + ' ~ '
+                + esc(ov.end_date || '?') + (ov.date_mode ? ' · ' + esc(ov.date_mode) : '') + '</span>';
+            }
           } else if (tool === 'hotwords' || tool === 'mining' || tool === 'backsearch') {
             f.page = pageNo.value;
             if (tool === 'mining' && !f.keyword) throw new Error('请填种子词');

@@ -140,6 +140,44 @@ def _search_date(v):
         raise ValueError(f"历史月份不合法：{s}")
     return f"{y:04d}-{mo:02d}-01"
 
+
+def _current_month(*, now=None):
+    """当前查询所在的月份 yyyy-MM，作为查类目 date 的默认值。"""
+    cur = now or datetime.now()
+    return f"{cur.year:04d}-{cur.month:02d}"
+
+
+def _category_date(v, *, now=None):
+    """「Ozon 查类目」的 date：历史月份 yyyy-MM，仅近 1 年；空值 = 近 30 天（不传该字段）。
+
+    官方文档 /open-api/category/detail/search/ozon：查近 30 天不传 date，
+    查历史月份传 yyyy-MM（如 2026-02）。原实现直接透传、无任何校验，
+    格式写错/超出 1 年时只会拿到难懂的官方报错或空数据。
+    宽容接受 yyyy-MM-01（与 searchDate 的写法一致），统一归一为 yyyy-MM。
+    """
+    s = str(v or "").strip()
+    if not s:
+        return None
+    m = re.match(r"^(\d{4})-(\d{1,2})(?:-(\d{1,2}))?$", s)
+    if not m:
+        raise ValueError("查询月份格式应为 YYYY-MM（如 2026-02）；留空则查近 30 天")
+    y, mo = int(m.group(1)), int(m.group(2))
+    if not 1 <= mo <= 12:
+        raise ValueError(f"查询月份不合法：{s}（月份须为 1~12）")
+    if m.group(3) and int(m.group(3)) != 1:
+        raise ValueError(f"查询月份只接受 YYYY-MM 或 YYYY-MM-01：{s}")
+    cur = now or datetime.now()
+    diff = (cur.year * 12 + cur.month) - (y * 12 + mo)
+    if diff < 0:
+        raise ValueError(f"查询月份不能是未来：{s}（当前 {cur.year:04d}-{cur.month:02d}）")
+    oldest = (cur.year * 12 + cur.month) - 12
+    oy, om = (oldest - 1) // 12, (oldest - 1) % 12 + 1
+    if diff > 12:
+        raise ValueError(f"查询月份超出近 1 年：{s}；允许范围 "
+                         f"{oy:04d}-{om:02d} ~ {cur.year:04d}-{cur.month:02d}")
+    return f"{y:04d}-{mo:02d}"
+
+
 def _pages_of(f: dict, hard_max=10) -> int:
     """本次请求要抓多少页（1~10）。官方单页上限 100 条，多页会按页计费。"""
     try:
@@ -512,9 +550,22 @@ class Selector:
             v = _range(f, k)
             if v:
                 body[k] = v
-        # —— 以下严格对齐官方「Ozon 查类目」Body 参数表 ——
-        if f.get("date"):
-            body["date"] = f["date"]      # 历史月份 yyyy-MM，仅近 1 年；近 30 天不传
+        # —— 查类目 date：默认显式传「当前月份」，口径确定，不依赖服务端隐含默认 ——
+        # 优先级：指定历史月 > 近30天(不传) > 显式 null(A/B) > 当前月(默认)。
+        # date 与 searchDate 是两个不同字段：这里只收 yyyy-MM，且校验近 1 年。
+        date_mode = ""
+        if f.get("date") not in (None, "", False):
+            body["date"] = _category_date(f["date"])
+            date_mode = f"历史月 {body['date']}"
+        elif f.get("last30"):
+            date_mode = "近30天（不传 date）"
+        elif f.get("date_null"):
+            body["date"] = None
+            date_mode = "显式 date:null"
+        else:
+            body["date"] = _current_month()
+            date_mode = f"当前月 {body['date']}（默认传入）"
+        query_date = body.get("date")
         # keywords / sellerName / skus / labels 都接受「逗号分隔字符串」或数组
         def as_list(v):
             if isinstance(v, (list, tuple)):
@@ -569,6 +620,7 @@ class Selector:
             "avg_price": d.get("avgPrice"), "seller_type": d.get("sellerType"),
             "products": d.get("products"), "start_date": d.get("startDate"),
             "end_date": d.get("endDate"),
+            "query_date": query_date, "date_mode": date_mode,
             "seasonality_amplitude": d.get("seasonalityAmplitude"),
             "seasonality_coef": d.get("seasonalityCoef"),
             "category_library_name": d.get("categoryLibraryName"),

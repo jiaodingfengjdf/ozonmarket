@@ -111,7 +111,8 @@ def add_common(p):
     p.add_argument("--keywords", default=None, help="多个关键词，逗号分隔")
     p.add_argument("--category-id", default=None, help="Seerfar 类目 ID")
     p.add_argument("--category-ids", default=None, help="多个类目 ID，逗号分隔")
-    p.add_argument("--search-date", default=None, help="历史月份 yyyy-MM，近 30 天不传")
+    p.add_argument("--search-date", default=None,
+                   help="榜单/挖词的 searchDate：yyyy-MM 自动补 01 号查上月；查类目请用 --date")
     p.add_argument("--creation-date", type=int, default=None,
                    help="上架时间：1近30天/3近90天/6近180天/12近一年/24近2年")
     p.add_argument("--match-type", type=int, default=0, choices=[0, 1], help="0精准 1模糊")
@@ -161,7 +162,12 @@ def main():
     p = sub.add_parser("category", help="查类目：大盘 + 商品清单 + 排名（需三级类目 ID）")
     p.add_argument("category_id", help="Seerfar 类目 ID；一级/二级只出大盘，三级才出商品")
     add_common(p)
-    p.add_argument("--date", default=None, help="历史月份 yyyy-MM，近 1 年内")
+    p.add_argument("--date", default=None,
+                   help="查类目专用：留空=显式传当前月 yyyy-MM；填 yyyy-MM 查历史月（近 1 年内）")
+    p.add_argument("--last30", action="store_true",
+                   help="不传 date（官方称查近 30 天），覆盖默认的当前月")
+    p.add_argument("--date-null", action="store_true",
+                   help="A/B 用：显式传 date:null（官方示例写法）而非省略字段，对比 startDate")
     p.add_argument("--fulfillment", default=None,
                    choices=["OZON", "FBO", "FBS", "RFBS", "FBP"])
     p.add_argument("--labels", default=None, help="标签 0新品,1正品,2畅销，逗号分隔")
@@ -378,6 +384,10 @@ def main():
                     v = getattr(a, extra, None)
                     if v not in (None, ""):
                         f[extra] = v
+                if getattr(a, "last30", False):
+                    f["last30"] = True
+                if getattr(a, "date_null", False):
+                    f["date_null"] = True
                 res = sel.category(cid, f)
                 meta["overview"] = res.get("overview")
                 meta["hint"] = res.get("hint")
@@ -424,7 +434,7 @@ def main():
             print("已导出:", path)
         return 0
 
-    except (CreditExhausted, BudgetExceeded, ApiError) as e:
+    except (CreditExhausted, BudgetExceeded, ApiError, ValueError) as e:
         print(f"[错误] {type(e).__name__}: {e}", file=sys.stderr)
         return 2
     except KeyboardInterrupt:

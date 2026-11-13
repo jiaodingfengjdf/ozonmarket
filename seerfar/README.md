@@ -115,6 +115,7 @@ $env:SEERFAR_API_KEY="eyJ..."
 | `python cli.py categories --enrich --level 1 --yes` | 补一级类目中文名 | ≈220（一次性） |
 | `python cli.py top --size 50 --export` | 热销榜单 + 导出 XLSX | 10/页 |
 | `python cli.py category 15621032_15621049_115951147 --size 20 --export` | 查类目：大盘 + 商品清单 + 排名 | 10/页 |
+| `python cli.py category <三级类目ID> --date 2026-02` | 查 2026 年 2 月历史数据（近 1 年内） | 10/页 |
 | `python cli.py category 15621031 --leaves` | 列出该类目下三级子类目（本地） | 0 |
 | `python cli.py hotwords --size 50 --export` | 市场热词 | 10/页 |
 | `python cli.py mining "наушники" --size 30` | 关键词挖掘 | 10/页 |
@@ -128,7 +129,35 @@ $env:SEERFAR_API_KEY="eyJ..."
 **筛选参数**：`--price-min/--price-max`、`--monthly-sales-min`、`--review-count-max`、
 `--review-rating-min`、`--search-volume-min`、`--sellers-max`、`--competing-products-max`、
 `--market-space-min`、`--sort`、`--direction`、`--keyword`、`--category-ids`、`--creation-date`、
-`--search-date` 等。`--pages N > 1` 与 `--enrich`、`cache-clear` 都需要 `--yes` 确认。
+`--search-date`、`--date`、`--last30`、`--date-null` 等。`--pages N > 1` 与 `--enrich`、`cache-clear` 都需要 `--yes` 确认。
+
+### 4.1 查类目的查询月份（`date`）
+
+**默认行为：显式传当前月份 `yyyy-MM`（如 `2026-11`）**，不依赖服务端「不传」时的隐含默认，
+口径确定、可复现。基本不查历史数据的话，这个字段不用管。
+
+| 想查 | 网页 | CLI |
+|---|---|---|
+| 当前月（默认） | 查询月份留空 | 不加参数 |
+| 近 30 天 | 勾「近30天（不传 date）」 | `--last30` |
+| 某个历史月 | 查询月份填 `2026-02` | `--date 2026-02` |
+| A/B：显式 null | — | `--date-null` |
+
+优先级：指定历史月 > `--last30` > `--date-null` > 当前月（默认）。
+
+与其它接口的日期字段**不是同一个东西**：
+
+| 接口 | 字段 | 格式 |
+|---|---|---|
+| 查类目 | `date` | `yyyy-MM`（如 `2026-02`），仅近 1 年 |
+| 查榜单 / 挖词 | `searchDate` | `yyyy-MM-dd` 且必须是 1 号；传 `2026-04-01` 查 3 月。填 `yyyy-MM` 自动补 `-01` |
+| 查店铺 | `date` | `yyyy-MM-dd`，查上一个自然月 |
+
+- 后端会校验格式（宽容接受 `yyyy-MM-01`）、月份 1~12、不得是未来月、不得早于近 12 个月；
+  非法值返回 400 并给出允许范围，不再把脏值透传给官方。
+- 结果条显示官方返回的 `startDate ~ endDate` 与本次口径（当前月 / 近30天 / 历史月 / 显式 null）。
+- **代价**：当前月只累计本月 1 号至今，销量/销额明显小于近 30 天，月初尤其明显。
+  且它仍是统计快照，`price` 不等于 Ozon 前台此刻的实时三档价（原价 / 其他银行卡价 / Ozon 卡价）。
 
 ---
 
